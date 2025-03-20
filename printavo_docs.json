@@ -1,0 +1,1254 @@
+[
+  {
+    "endpoints": [
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/paymentrequestcreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "PaymentRequestCreateInput!",
+            "required": true
+          },
+          {
+            "name": "parentId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Create a payment request on a quote or invoice."
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/approvalrequestcreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "ApprovalRequestCreateInput!",
+            "required": true
+          },
+          {
+            "name": "parentId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Create an approval request on a quote or invoice."
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/lineitemgroupcreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "LineItemGroupCreateInput!",
+            "required": true
+          },
+          {
+            "name": "parentId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Create a line item group with specified input values and associate it with a quote or invoice."
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/lineitemcreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "LineItemCreateInput!",
+            "required": true
+          },
+          {
+            "name": "lineItemGroupId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Create a line item"
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/customaddresscreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "CustomAddressInput!",
+            "required": true
+          },
+          {
+            "name": "parentId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Create a custom address on a quote or invoice."
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/imprintmockupcreate",
+        "parameters": [
+          {
+            "name": "imprintId",
+            "type": "ID!",
+            "required": true
+          },
+          {
+            "name": "publicImageUrl",
+            "type": "String!",
+            "required": true
+          }
+        ],
+        "description": "Create a mockup"
+      },
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/deliverymethodcreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "DeliveryMethodInput!",
+            "required": true
+          }
+        ],
+        "description": "Create a delivery method"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/contact",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get contact by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/customer",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get customer by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/inquiry",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get an Inquiry by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/invoice",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get invoice by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/lineitem",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get a line item by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/lineitemgroup",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get a line item group by ID"
+      },
+      {
+        "method": "POST",
+        "endpoint": "/query/lineitemgrouppricing",
+        "parameters": [
+          {
+            "name": "lineItemGroup",
+            "type": "LineItemGroupPricingInput!",
+            "required": true
+          }
+        ],
+        "description": "Calculate line item prices in a line item group"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/merchorder",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get merch order by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/merchstore",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get a merch store by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/order",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get quote or invoice by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/quote",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get quote by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/status",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Status"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/task",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get a task"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/thread",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get all the messages in a thread"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/transaction",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get transaction by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/transactiondetail",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Get transaction details by ID"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/user",
+        "parameters": [],
+        "description": "Get user for the current user's session"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/orders",
+        "parameters": [
+          {
+            "name": "inProductionAfter",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "inProductionBefore",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "statusIds",
+            "type": "[ID!]",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "sortOn",
+            "type": "OrderSortField",
+            "required": false
+          }
+        ],
+        "description": "Get all quotes and invoices"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/customers",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Get all customers"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/inquiries",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Get all Inquiries"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/invoices",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "excludeStatusIds",
+            "type": "[ID!]",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "inProductionAfter",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "inProductionBefore",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "paymentStatus",
+            "type": "OrderPaymentStatus",
+            "required": false
+          },
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "sortDescending",
+            "type": "Boolean",
+            "required": false
+          },
+          {
+            "name": "sortOn",
+            "type": "OrderSortField",
+            "required": false
+          },
+          {
+            "name": "statusIds",
+            "type": "[ID!]",
+            "required": false
+          },
+          {
+            "name": "tags",
+            "type": "[String!]",
+            "required": false
+          }
+        ],
+        "description": "Get all invoices"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/merchstores",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "List all merch stores"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/paymentrequests",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Get all open payment requests"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/products",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "query",
+            "type": "String!",
+            "required": true
+          }
+        ],
+        "description": "List of products"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/quotes",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "excludeStatusIds",
+            "type": "[ID!]",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "inProductionAfter",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "inProductionBefore",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "paymentStatus",
+            "type": "OrderPaymentStatus",
+            "required": false
+          },
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "sortDescending",
+            "type": "Boolean",
+            "required": false
+          },
+          {
+            "name": "sortOn",
+            "type": "OrderSortField",
+            "required": false
+          },
+          {
+            "name": "statusIds",
+            "type": "[ID!]",
+            "required": false
+          },
+          {
+            "name": "tags",
+            "type": "[String!]",
+            "required": false
+          }
+        ],
+        "description": "Get all quotes"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/statuses",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "type",
+            "type": "StatusType",
+            "required": false
+          }
+        ],
+        "description": "List statuses"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/tasks",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "assigneeId",
+            "type": "ID",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "completed",
+            "type": "Boolean",
+            "required": false
+          },
+          {
+            "name": "dueAfter",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "dueBefore",
+            "type": "ISO8601DateTime",
+            "required": false
+          },
+          {
+            "name": "excludedOrderStatusIds",
+            "type": "[ID!]",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "includedOrderStatusIds",
+            "type": "[ID!]",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "sortDescending",
+            "type": "Boolean",
+            "required": false
+          },
+          {
+            "name": "sortOn",
+            "type": "TaskSortField",
+            "required": false
+          }
+        ],
+        "description": "Get all tasks"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/threads",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "onlyWithUnread",
+            "type": "Boolean",
+            "required": false
+          }
+        ],
+        "description": "Get latest message from all threads"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/query/transactions",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Get all transactions"
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/inquiryupdate",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          },
+          {
+            "name": "input",
+            "type": "InquiryInput!",
+            "required": true
+          }
+        ],
+        "description": "Update an inquiry"
+      },
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/imprintcreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "ImprintCreateInput!",
+            "required": true
+          },
+          {
+            "name": "lineItemGroupId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Create an imprint with the specified input values and associate it with a line item group."
+      },
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/login",
+        "parameters": [
+          {
+            "name": "deviceName",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "deviceToken",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "email",
+            "type": "String!",
+            "required": true
+          },
+          {
+            "name": "password",
+            "type": "String!",
+            "required": true
+          }
+        ],
+        "description": "Login and get a session token"
+      },
+      {
+        "method": "GET",
+        "endpoint": "/customer/contacts",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the contacts associated with the customer."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/customer/orders",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns all quotes and invoices assigned to this customer."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/customer/reminders",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns reminders associated with the customer."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/approvalrequests",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the approval requests associated with the invoice."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/customaddresses",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the custom addresses associated with the invoice."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/expenses",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the expenses associated with the invoice."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/fees",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the fees associated with the invoice."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/lineitemgroups",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the line item groups associated with the invoice."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/productionfiles",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the production files associated with the invoice."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/tasks",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the tasks associated with the invoice."
+      },
+      {
+        "method": "GET",
+        "endpoint": "/invoice/transactions",
+        "parameters": [
+          {
+            "name": "after",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "before",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "first",
+            "type": "Int",
+            "required": false
+          },
+          {
+            "name": "last",
+            "type": "Int",
+            "required": false
+          }
+        ],
+        "description": "Returns the transactions associated with the invoice."
+      },
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/threadupdate",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          },
+          {
+            "name": "unread",
+            "type": "Boolean!",
+            "required": true
+          }
+        ],
+        "description": "Update a thread"
+      },
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/statusupdate",
+        "parameters": [
+          {
+            "name": "parentId",
+            "type": "ID!",
+            "required": true
+          },
+          {
+            "name": "statusId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Set the status for a quote or invoice."
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/taskcreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "TaskCreateInput!",
+            "required": true
+          }
+        ],
+        "description": "Create a task"
+      },
+      {
+        "method": "POST",
+        "endpoint": "/mutation/quotecreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "QuoteCreateInput!",
+            "required": true
+          }
+        ],
+        "description": "Create a quote"
+      },
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/feecreate",
+        "parameters": [
+          {
+            "name": "input",
+            "type": "FeeInput!",
+            "required": true
+          },
+          {
+            "name": "parentId",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Create a fee on a quote or invoice"
+      },
+      {
+        "method": "POST",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/feeupdate",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          },
+          {
+            "name": "input",
+            "type": "FeeInput!",
+            "required": true
+          }
+        ],
+        "description": "Update a fee"
+      },
+      {
+        "method": "DELETE",
+        "endpoint": "http://printavo.com/docs/api/v2/mutation/feedelete",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "ID!",
+            "required": true
+          }
+        ],
+        "description": "Delete fee"
+      }
+    ]
+  }
+]

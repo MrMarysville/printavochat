@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "endpoints": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["GET", "POST", "PUT", "DELETE"]
+            },
+            "endpoint": {
+              "type": "string",
+              "format": "uri"
+            },
+            "parameters": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["name", "type", "required"]
+              }
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": ["method", "endpoint", "parameters", "description"]
+        }
+      }
+    },
+    "required": ["endpoints"]
+  }
+}
