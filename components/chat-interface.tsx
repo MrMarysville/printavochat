@@ -1,197 +1,120 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
-
+import { Send, Paperclip, X, Minimize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
-import { ChatMessage } from './chat-message';
-import { ChatMessage as ChatMessageType } from '@/lib/types';
+import { logger } from '@/lib/logger';
+import { FileUpload } from './file-upload';
+import { useToast } from './ui/use-toast';
+import { OrderCard } from './rich-messages/OrderCard';
+import { ProductGallery } from './rich-messages/ProductGallery';
+import { DynamicForm } from './rich-messages/DynamicForm';
+
+type MessageType = 'text' | 'file' | 'order' | 'product' | 'form' | 'dashboard';
+
+interface ChatFile {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+}
+
+interface RichMessageData {
+  type: 'order' | 'product' | 'form' | 'dashboard';
+  content: any;
+}
+
+interface ChatMessageType {
+  id: string;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  timestamp: string;
+  files?: ChatFile[];
+  richData?: RichMessageData;
+  messageType: MessageType;
+}
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessageType[]>([
     {
       id: '1',
-      content: 'Hello! I can help you manage your Printavo data. Try:\n- Creating a quote\n- Searching for customers\n- Managing tasks\n- Looking up orders',
-      role: 'system',
-      timestamp: new Date(),
+      content: 'Hello! I can help you with Printavo operations. What would you like to do?',
+      role: 'assistant',
+      timestamp: new Date().toISOString(),
+      messageType: 'text'
     },
   ]);
-  
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiConnected, setApiConnected] = useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const scrollToBottom = () => {
+  const { toast } = useToast();
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-  
-  useEffect(() => {
-    scrollToBottom();
   }, [messages]);
-  
-  // Check Printavo API connection on component mount
+
+  // Check connection status
   useEffect(() => {
-    const checkPrintavoConnection = async () => {
+    const checkConnection = async () => {
       try {
-        console.log('Checking Printavo API connection...');
+        const response = await fetch('/api/health');
+        if (!response.ok) throw new Error('Health check failed');
+        const data = await response.json();
+        setIsConnected(data.status === 'ok');
         setConnectionError(null);
-        
-        // Try to make a direct fetch to Printavo API
-        const apiUrl = process.env.NEXT_PUBLIC_PRINTAVO_API_URL;
-        const email = process.env.NEXT_PUBLIC_PRINTAVO_EMAIL;
-        const token = process.env.NEXT_PUBLIC_PRINTAVO_TOKEN;
-        
-        if (!apiUrl || !email || !token) {
-          console.error('Missing Printavo API credentials');
-          setApiConnected(false);
-          setConnectionError('Missing API credentials');
-          return;
-        }
-        
-        try {
-          // Make a direct request to the Printavo API
-          const response = await fetch(`${apiUrl}/customers?limit=1`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'email': email,
-              'token': token,
-            },
-          });
-          
-          console.log('Printavo API direct response status:', response.status);
-          
-          if (response.ok) {
-            console.log('Printavo connection successful!');
-            setApiConnected(true);
-          } else {
-            console.error('Printavo API returned error status:', response.status);
-            setApiConnected(false);
-            setConnectionError(`API Error: ${response.status}`);
-          }
-        } catch (error) {
-          console.error('Error making direct Printavo API request:', error);
-          setApiConnected(false);
-          setConnectionError('Network error');
-        }
       } catch (error) {
-        console.error('Failed to check Printavo connection:', error);
-        setApiConnected(false);
-        setConnectionError('Connection check failed');
+        console.error('Connection check failed:', error);
+        setIsConnected(false);
+        setConnectionError('Failed to connect to server');
       }
     };
-    
-    checkPrintavoConnection();
-    
-    // Set up periodic connection checks every 30 seconds
-    const intervalId = setInterval(checkPrintavoConnection, 30000);
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
+
+    checkConnection();
   }, []);
-  
-  const handleSendMessage = async (e: React.FormEvent) => {
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
     if (!input.trim()) return;
-    
+
     // Add user message to chat
     const userMessage: ChatMessageType = {
       id: Date.now().toString(),
       content: input,
       role: 'user',
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
+      messageType: 'text'
     };
     
-    setMessages((prevMessages) => [...prevMessages, userMessage]);
+    setMessages(prevMessages => [...prevMessages, userMessage]);
     setInput('');
     setIsLoading(true);
-    
+
     try {
-      // Format chat history for AI processing
-      const chatHistoryForAI = messages
-        .filter(msg => msg.id !== '1') // Skip the initial greeting
-        .map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }));
+      // Process the message and get response
+      const response = await processMessage(input);
       
-      // Call our API endpoint to process the message
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [
-            ...chatHistoryForAI,
-            { role: 'user', content: input }
-          ]
-        }),
-      });
+      // Add assistant's response to chat
+      const assistantMessage: ChatMessageType = {
+        id: Date.now().toString() + '-assistant',
+        content: response.message,
+        role: 'assistant',
+        timestamp: new Date().toISOString(),
+        messageType: 'text',
+        richData: response.richData
+      };
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process your request');
-      }
-      
-      // Add assistant's response to the chat
-      if (data.response) {
-        const assistantMessage: ChatMessageType = {
-          id: Date.now().toString() + '-assistant',
-          content: data.response.content || 'Sorry, I couldn\'t generate a response.',
-          role: 'assistant',
-          timestamp: new Date(),
-        };
-        
-        setMessages(prevMessages => [...prevMessages, assistantMessage]);
-      }
-      
-      // Only display operation explanation if it's not just a conversation
-      if (data.operation && data.operation.operation !== 'conversation') {
-        const explanationMessage: ChatMessageType = {
-          id: Date.now().toString() + '-explanation',
-          content: data.operation.explanation,
-          role: 'system',
-          timestamp: new Date(),
-        };
-        
-        setMessages(prevMessages => [...prevMessages, explanationMessage]);
-      }
-      
-      // If we got data from Printavo, format and display it
-      if (data.response?.data) {
-        // Give a small delay for better UX with multiple messages
-        setTimeout(() => {
-          const formattedData = formatResponseData(data.response.data, data.operation.operation);
-          const dataMessage: ChatMessageType = {
-            id: Date.now().toString() + '-data',
-            content: formattedData,
-            role: 'system',
-            timestamp: new Date(),
-          };
-          
-          setMessages(prevMessages => [...prevMessages, dataMessage]);
-        }, 500);
-      } else if (data.response?.errors) {
-        // Handle API errors
-        setTimeout(() => {
-          const errorMessage: ChatMessageType = {
-            id: Date.now().toString() + '-error',
-            content: `Error from Printavo API: ${data.response.errors[0]?.message || 'Unknown error'}`,
-            role: 'system',
-            timestamp: new Date(),
-          };
-          
-          setMessages(prevMessages => [...prevMessages, errorMessage]);
-        }, 500);
-      }
+      setMessages(prevMessages => [...prevMessages, assistantMessage]);
     } catch (error) {
+      logger.error('Chat interface error:', error);
+      
       // Handle errors
       const errorMessage: ChatMessageType = {
         id: Date.now().toString() + '-error',
@@ -199,7 +122,8 @@ export default function ChatInterface() {
           ? `Error: ${error.message}` 
           : 'Sorry, I encountered an error processing your request.',
         role: 'system',
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
+        messageType: 'text'
       };
       
       setMessages(prevMessages => [...prevMessages, errorMessage]);
@@ -208,123 +132,373 @@ export default function ChatInterface() {
     }
   };
 
-  // Helper function to format the response data based on operation type
-  const formatResponseData = (data: any, operation: string): string => {
-    if (!data) return 'No data available';
+  const processMessage = async (inputMessage: string): Promise<{
+    message: string;
+    richData?: RichMessageData;
+  }> => {
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            ...messages,
+            {
+              id: Date.now().toString(),
+              content: inputMessage,
+              role: 'user',
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        }),
+      });
 
-    switch (operation) {
-      case 'createQuote':
-        return formatQuote(data);
-      case 'getCustomer':
-        return formatCustomer(data);
-      case 'searchOrders':
-        return formatOrders(data);
-      case 'createTask':
-        return formatTask(data);
-      default:
-        return '```json\n' + JSON.stringify(data, null, 2) + '\n```';
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        message: data.message,
+        richData: data.richData
+      };
+    } catch (error) {
+      logger.error('Error processing message:', error);
+      throw error;
     }
   };
 
-  const formatQuote = (quote: any): string => {
-    return `Quote Created:
-Order #${quote.orderNumber}
-Status: ${quote.status?.name || 'New'}
-Customer: ${quote.customer?.name || 'N/A'}
-Created: ${new Date(quote.createdAt).toLocaleDateString()}
+  const handleFileUpload = async (files: File[]) => {
+    if (!files.length) return;
 
-Line Items:${formatLineItemGroups(quote.lineItemGroups)}`;
-  };
-
-  const formatLineItemGroups = (groups: any): string => {
-    if (!groups?.edges) return '\nNo items added';
-
-    return groups.edges.map((edge: any) => {
-      const group = edge.node;
-      return `\n\nGroup: ${group.name}
-${group.lineItems?.edges.map((itemEdge: any) => {
-  const item = itemEdge.node;
-  return `- ${item.name}
-  Quantity: ${item.quantity}
-  Price: $${item.unitPrice}`;
-}).join('\n')}`;
-    }).join('');
-  };
-
-  const formatCustomer = (customer: any): string => {
-    return `Customer Details:
-Name: ${customer.name}
-Email: ${customer.email || 'N/A'}
-Phone: ${customer.phone || 'N/A'}
-
-Recent Orders:${customer.orders?.edges.map((edge: any) => {
-  const order = edge.node;
-  return `\n- Order #${order.orderNumber}
-  Status: ${order.status?.name || 'N/A'}
-  Created: ${new Date(order.createdAt).toLocaleDateString()}`;
-}).join('') || '\nNo recent orders'}`;
-  };
-
-  const formatOrders = (data: any): string => {
-    if (!data.orders?.edges?.length) return 'No orders found';
-
-    return `Orders:\n\n${data.orders.edges.map((edge: any) => {
-      const order = edge.node;
-      return `Order #${order.orderNumber}
-Status: ${order.status?.name || 'N/A'}
-Customer: ${order.customer?.name || 'N/A'}
-Created: ${new Date(order.createdAt).toLocaleDateString()}
-`;
-    }).join('\n')}`;
-  };
-
-  const formatTask = (task: any): string => {
-    return `Task Created:
-Title: ${task.title}
-Due: ${task.dueAt ? new Date(task.dueAt).toLocaleDateString() : 'No due date'}
-Status: ${task.completed ? 'Completed' : 'Pending'}
-${task.description ? `\nDescription:\n${task.description}` : ''}`;
+    setIsLoading(true);
+    
+    try {
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+      formData.append('parentType', 'chat');
+      formData.append('parentId', 'chat-session');
+      
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Create message with file attachments
+      const fileMessage: ChatMessageType = {
+        id: Date.now().toString(),
+        content: files.length === 1 
+          ? `I've uploaded a file: ${files[0].name}` 
+          : `I've uploaded ${files.length} files`,
+        role: 'user',
+        timestamp: new Date().toISOString(),
+        files: data.files.map((file: any) => ({
+          id: file.fileName,
+          name: file.originalName,
+          url: file.url,
+          type: file.type,
+          size: file.size
+        })),
+        messageType: 'file'
+      };
+      
+      setMessages(prev => [...prev, fileMessage]);
+      setShowUpload(false);
+      
+      toast({
+        title: 'Files uploaded successfully',
+        description: `${files.length} file${files.length > 1 ? 's' : ''} uploaded`
+      });
+      
+      // Process the uploaded files to get a response
+      handleUploadedFiles(fileMessage);
+      
+    } catch (error) {
+      logger.error('File upload error:', error);
+      toast({
+        title: 'Upload failed',
+        description: error instanceof Error ? error.message : 'Failed to upload files',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
+  const handleUploadedFiles = async (fileMessage: ChatMessageType) => {
+    setIsLoading(true);
+    
+    try {
+      // Send the file message to the chat API to process
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [...messages, fileMessage],
+          files: fileMessage.files
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Add assistant's response
+      const assistantMessage: ChatMessageType = {
+        id: Date.now().toString() + '-assistant',
+        content: data.message,
+        role: 'assistant',
+        timestamp: new Date().toISOString(),
+        messageType: 'text',
+        richData: data.richData
+      };
+      
+      setMessages(prevMessages => [...prevMessages, assistantMessage]);
+    } catch (error) {
+      logger.error('Error processing uploaded files:', error);
+      
+      const errorMessage: ChatMessageType = {
+        id: Date.now().toString() + '-error',
+        content: error instanceof Error 
+          ? `Error processing files: ${error.message}` 
+          : 'Sorry, I encountered an error processing your files.',
+        role: 'system',
+        timestamp: new Date().toISOString(),
+        messageType: 'text'
+      };
+      
+      setMessages(prevMessages => [...prevMessages, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Format timestamp consistently
+  const formatTimestamp = (isoString: string) => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  // Render different message types
+  const renderMessage = (message: ChatMessageType) => {
+    switch (message.messageType) {
+      case 'file':
+        return (
+          <div className="flex flex-col space-y-2">
+            <p className="text-sm">{message.content}</p>
+            <div className="flex flex-wrap gap-2">
+              {message.files?.map(file => (
+                <a 
+                  key={file.id}
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center p-2 rounded bg-gray-100 text-xs hover:bg-gray-200 transition"
+                >
+                  {file.type.startsWith('image/') ? (
+                    <img 
+                      src={file.url} 
+                      alt={file.name} 
+                      className="h-8 w-8 object-cover rounded mr-2" 
+                    />
+                  ) : (
+                    <div className="h-8 w-8 bg-gray-200 rounded flex items-center justify-center mr-2">
+                      <span className="text-xs">{file.name.split('.').pop()}</span>
+                    </div>
+                  )}
+                  <span className="truncate max-w-[120px]">{file.name}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      
+      case 'text':
+        // Check if there's rich data to render
+        if (message.richData) {
+          switch (message.richData.type) {
+            case 'order':
+              return (
+                <div className="flex flex-col space-y-3">
+                  <p className="text-sm">{message.content}</p>
+                  <OrderCard 
+                    order={message.richData.content} 
+                    onViewDetails={() => console.log(`View order: ${message.richData?.content.id}`)}
+                  />
+                </div>
+              );
+              
+            case 'product':
+              return (
+                <div className="flex flex-col space-y-3">
+                  <p className="text-sm">{message.content}</p>
+                  <ProductGallery 
+                    products={message.richData.content} 
+                    onSelectProduct={(product) => console.log(`Selected product: ${product.id}`)}
+                  />
+                </div>
+              );
+              
+            case 'form':
+              return (
+                <div className="flex flex-col space-y-3">
+                  <p className="text-sm">{message.content}</p>
+                  <DynamicForm 
+                    fields={message.richData.content.fields}
+                    title={message.richData.content.title}
+                    onSubmit={(values) => {
+                      // Handle form submission
+                      console.log('Form values:', values);
+                      // You would typically send this to your API
+                      const formResponseMessage: ChatMessageType = {
+                        id: Date.now().toString(),
+                        content: 'I submitted the form with the provided information',
+                        role: 'user',
+                        timestamp: new Date().toISOString(),
+                        messageType: 'text'
+                      };
+                      setMessages(prev => [...prev, formResponseMessage]);
+                    }}
+                  />
+                </div>
+              );
+          }
+        }
+        
+        // Default text rendering
+        return <p className="text-sm whitespace-pre-wrap">{message.content}</p>;
+        
+      default:
+        return <p className="text-sm">{message.content}</p>;
+    }
+  };
+
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-4 right-4 w-16 h-16 bg-primary rounded-full shadow-lg cursor-pointer flex items-center justify-center"
+        onClick={() => setIsMinimized(false)}>
+        <Send className="h-6 w-6 text-white" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full border rounded-lg overflow-hidden">
-      <div className="flex items-center p-4 border-b">
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-4 border-b">
         <h2 className="text-xl font-bold">Printavo Chat</h2>
-        <div className="ml-2 flex items-center">
-          <div className={`w-3 h-3 rounded-full mr-1 ${apiConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-xs text-muted-foreground">{apiConnected ? 'Connected' : 'Disconnected'}</span>
+        <div className="flex items-center space-x-2">
+          <div className={`w-3 h-3 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <span className="text-xs text-muted-foreground">{isConnected ? 'Connected' : 'Disconnected'}</span>
           {connectionError && <span className="text-xs text-red-500 ml-2">{connectionError}</span>}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setIsMinimized(true)}
+            className="ml-2"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
-      
+
       <ScrollArea className="flex-1 p-4">
-        <div className="flex flex-col gap-4">
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} message={msg} />
+        <div className="space-y-4">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              <div
+                className={`max-w-[80%] rounded-lg p-3 ${
+                  message.role === 'user'
+                    ? 'bg-primary text-primary-foreground'
+                    : message.role === 'system'
+                    ? 'bg-muted text-muted-foreground'
+                    : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                {renderMessage(message)}
+                <span className="text-xs opacity-70 block mt-1">
+                  {formatTimestamp(message.timestamp)}
+                </span>
+              </div>
+            </div>
           ))}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
-      
-      <form 
-        onSubmit={handleSendMessage} 
-        className="border-t p-4 flex gap-2"
-      >
-        <Input
-          placeholder="Create a quote, search customers, manage tasks..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={isLoading}
-          className="flex-1"
-        />
-        <Button type="submit" size="icon" disabled={isLoading}>
-          {isLoading ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-          ) : (
+
+      {showUpload && (
+        <div className="border-t p-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-medium">Upload Files</h3>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setShowUpload(false)}
+              className="h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <FileUpload 
+            onFileUpload={handleFileUpload} 
+            parentType="chat"
+            parentId="chat-session"
+          />
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="p-4 border-t">
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowUpload(!showUpload)}
+            disabled={isLoading}
+            className="flex-shrink-0"
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type your message..."
+            disabled={isLoading || !isConnected}
+            className="flex-1"
+          />
+          <Button type="submit" disabled={isLoading || !isConnected || !input.trim()}>
             <Send className="h-4 w-4" />
-          )}
-        </Button>
+          </Button>
+        </div>
       </form>
     </div>
   );
 }
+
+
+
+
+
+

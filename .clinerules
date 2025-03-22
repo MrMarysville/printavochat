@@ -1,0 +1,52 @@
+# Printavo Chat Application Rules
+
+## Project Structure
+- This is a Next.js application with TypeScript that provides a chat interface for Printavo operations.
+- API routes are in `/app/api/` directory.
+- Core logic is in `/lib/` directory.
+- UI components are in `/components/` directory.
+
+## Key Components
+- `lib/graphql-client.ts`: Handles all GraphQL operations with the Printavo API. All functions are exported from here.
+- `lib/printavo-service.ts`: Provides a simplified interface to operations in graphql-client.ts.
+- `lib/operations.ts`: Manages the determination and execution of operations based on user input.
+- `app/api/printavo/route.ts`: API route for Printavo operations, providing a RESTful interface for frontend.
+- `app/api/chat/route.ts`: API route for chat functionality, processes messages and provides responses.
+
+## Critical Patterns
+
+### Visual ID Query Pattern
+- Orders can be queried by their Visual ID (4-digit identifier) using `getOrderByVisualId` function.
+- When searching for orders, we first check if the input is a 4-digit number (visual ID).
+- If it is a visual ID, we try fetching with `getOrderByVisualId` first before falling back to regular ID formats.
+- Regular IDs can have prefixes like "INV-" or "Q-" which are tried as fallbacks.
+
+### Error Handling Pattern
+- Custom error classes extend `PrintavoAPIError` for different error types:
+  - `PrintavoAuthenticationError`: Authentication issues
+  - `PrintavoValidationError`: Input validation failures
+  - `PrintavoNotFoundError`: Resource not found
+  - `PrintavoRateLimitError`: Rate limit exceeded
+- All API routes use try/catch blocks with specific error handling
+- Errors are logged using `logger.error()` before returning to client
+- Error responses include `success: false` and appropriate HTTP status codes
+
+### Context Tracking
+- Conversation context is tracked in `ConversationContext` interface
+- Context includes: lastOrderId, lastOrderType, lastCustomerId, lastSearchTerm, lastIntent
+- Context is built from previous messages and updated after responses
+- When follow-up questions are detected, the context is used to determine the intent
+
+## Important Type Definitions
+- `PrintavoAPIResponse<T>`: Generic response type with data, errors, success flag
+- `Operation`: Interface for operations with name, explanation, and execute function
+- `OperationResult`: Result of operation execution with message and data
+- Custom error types inherit from `PrintavoAPIError`
+
+## User Query Patterns
+- Users can query orders in several ways:
+  1. By typing just the 4-digit visual ID (e.g., "1234")
+  2. By prefixing with order/quote/invoice (e.g., "order #1234")
+  3. By searching with text query (e.g., "find recent orders")
+- User queries are parsed in `determineOperation` function in operations.ts
+- Natural language patterns are matched using regular expressions

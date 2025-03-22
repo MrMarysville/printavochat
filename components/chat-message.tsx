@@ -14,7 +14,6 @@ interface ChatMessageProps {
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
   
-  // Function to format content if it's JSON
   const formatContent = (content: string) => {
     try {
       // Check if the content is JSON
@@ -24,7 +23,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
       }
       return content;
     } catch (e) {
-      // If parsing fails, return the original content
+      // If parsing fails, log the error and return the original content
+      console.warn('Failed to parse JSON content:', e);
       return content;
     }
   };
@@ -71,3 +71,4 @@ export function ChatMessage({ message }: ChatMessageProps) {
     </div>
   );
 }
+

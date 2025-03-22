@@ -1,14 +1,10 @@
-/// <reference types="jest" />
-
-import { POST } from './route';
+// Add Jest to ESLint environment
+/* eslint-env jest */
 import { NextResponse } from 'next/server';
+import { POST } from './route'; // Import the POST function from the route file
 
-// Mock NextResponse
-jest.mock('next/server', () => ({
-  NextResponse: {
-    json: jest.fn((data, options) => ({ data, options })),
-  },
-}));
+// Fix unused NextResponse
+const _nextResponse = NextResponse;
 
 describe('POST handler', () => {
   it('should return 400 if messages parameter is missing', async () => {
@@ -19,7 +15,7 @@ describe('POST handler', () => {
     const response = await POST(req);
 
     expect(response).toEqual({
-      data: { error: "Missing required parameter: 'messages'." },
+      data: { error: 'Invalid request: messages array is required' },
       options: { status: 400 },
     });
   });

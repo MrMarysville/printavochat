@@ -107,11 +107,16 @@ export interface DeliveryMethodInput {
 }
 
 // API Response Types
-export interface PrintavoAPIResponse<T = any> {
+export interface PrintavoAPIResponse<T> {
   data?: T;
   errors?: Array<{
     message: string;
+    locations?: Array<{
+      line: number;
+      column: number;
+    }>;
     path?: string[];
+    extensions?: Record<string, any>;
   }>;
 }
 
@@ -128,58 +133,63 @@ export interface PrintavoConnection<T> {
   };
 }
 
+export interface CustomerCreateInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  address?: {
+    street1: string;
+    street2?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country?: string;
+  };
+}
+
 export interface PrintavoCustomer {
   id: string;
   name: string;
-  email?: string;
-  phone?: string;
+  email: string;
+  phone: string;
+  company?: string;
+  createdAt: string;
+  updatedAt: string;
   addresses?: PrintavoConnection<CustomAddressInput>;
   orders?: PrintavoConnection<PrintavoOrder>;
 }
 
 export interface PrintavoOrder {
   id: string;
-  orderNumber: string;
+  name: string;
   status: {
     id: string;
     name: string;
   };
+  customer: PrintavoCustomer;
   createdAt: string;
-  inProductionAt?: string;
-  dueAt?: string;
-  customer?: PrintavoCustomer;
-  lineItemGroups?: PrintavoConnection<PrintavoLineItemGroup>;
+  updatedAt: string;
+  total: number;
+  lineItemGroups: PrintavoLineItemGroup[];
+  // Add other fields as needed
 }
 
 export interface PrintavoLineItemGroup {
   id: string;
   name: string;
-  description?: string;
-  notes?: string;
-  subtotal?: number;
-  total?: number;
-  lineItems?: PrintavoConnection<PrintavoLineItem>;
-  imprints?: PrintavoConnection<PrintavoImprint>;
-  expenses?: PrintavoConnection<{
-    id: string;
-    name: string;
-    amount: number;
-    description?: string;
-    paidAt?: string;
-  }>;
+  lineItems: PrintavoLineItem[];
+  // Add other fields as needed
 }
 
 export interface PrintavoLineItem {
   id: string;
   name: string;
-  description?: string;
   quantity: number;
-  unitPrice: number;
-  subtotal?: number;
-  total?: number;
-  product?: PrintavoProduct;
-  tax?: number;
-  fees?: PrintavoConnection<PrintavoFee>;
+  price: number;
+  total: number;
+  // Add other fields as needed
 }
 
 export interface PrintavoImprint {
@@ -308,3 +318,24 @@ export interface ExpenseInput {
   paidAt?: string;
   vendorId?: string;
 }
+
+// Response type mapping for Printavo API endpoints
+export const responseTypeMap: Record<string, string> = {
+  '/query/order': 'PrintavoOrder',
+  '/query/quote': 'PrintavoOrder',
+  '/query/orders': 'PrintavoOrder[]',
+  '/query/customer': 'PrintavoCustomer',
+  '/query/customers': 'PrintavoCustomer[]',
+  '/query/products': 'PrintavoProduct[]',
+  '/query/lineitem': 'PrintavoLineItem',
+  '/query/lineitemgroup': 'PrintavoLineItemGroup',
+  '/query/lineitemgrouppricing': 'LineItemPricing',
+  '/query/paymentrequests': 'PrintavoPaymentRequest[]',
+  '/mutation/paymentrequestcreate': 'PrintavoPaymentRequest',
+  '/mutation/approvalrequestcreate': 'PrintavoApprovalRequest',
+  '/mutation/quotecreate': 'PrintavoOrder',
+  '/mutation/feecreate': 'PrintavoFee',
+  '/mutation/feeupdate': 'PrintavoFee',
+  '/mutation/lineitemgroupcreate': 'PrintavoLineItemGroup',
+  '/mutation/lineitemcreate': 'PrintavoLineItem'
+};
