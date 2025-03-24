@@ -1,4 +1,4 @@
-import { ChatMessage } from '../../app/api/chat/route';
+import { ChatMessage } from '@/app/api/chat/route';
 
 // Add this new interface for tracking conversation context
 export interface ConversationContext {

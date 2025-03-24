@@ -51,7 +51,7 @@ export async function processWithGPT(messages: PrintavoChatMessage[]): Promise<{
 }> {
   try {
     // Add system message at the beginning if not already present
-    if (messages.length === 0 || messages[0].role !== 'system') {
+    if (messages.length === 0 || (messages[0].role as string) !== 'system') {
       messages.unshift({
         role: 'system',
         content: systemPrompt

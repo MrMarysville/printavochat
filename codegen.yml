@@ -1,0 +1,11 @@
+schema: 'https://www.printavo.com/api/v2'
+documents: 'src/**/*.graphql'
+generates:
+  lib/generated/graphql.ts:
+    plugins:
+      - 'typescript'
+      - 'typescript-operations'
+      - 'typescript-graphql-request'
+    config:
+      typescript-graphql-request:
+        maxDepth: 10

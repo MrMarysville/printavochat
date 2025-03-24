@@ -1,309 +1,226 @@
-import {
-  QuoteCreateInput,
-  LineItemGroupCreateInput,
-  LineItemCreateInput,
-  CustomAddressInput,
-  ImprintCreateInput,
-  PrintavoOrder,
-  LineItemGroupPricingInput,
-  LineItemPricing,
-  PrintavoLineItem,
-  PrintavoLineItemGroup,
-} from '../../types';
-import { PrintavoAPIResponse, query, mutate } from '../utils';
-import { MUTATIONS } from '../mutations';
-import { getOrder } from './orders';
-import { QUERIES } from '../queries';
+import { PrintavoOrder } from '../../types';
+import { PrintavoAPIResponse, query } from '../utils';
+import { quoteQueries } from '../queries/quoteQueries';
 import { logger } from '../../logger';
+import { handleAPIError } from '../utils';
+import { PrintavoNotFoundError } from '../errors';
+import cache from '../../cache';
 
-// Quote Creation and Management
-export async function createQuote(input: QuoteCreateInput): Promise<PrintavoAPIResponse<PrintavoOrder>> {
-  return mutate(MUTATIONS.quoteCreate, { input });
-}
+// Get quote by ID
+export async function getQuote(id: string): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  // Generate a cache key for this quote ID
+  const cacheKey = `quote_id_${id}`;
+  
+  // Check if we have a cached result
+  const cachedResult = cache.get<PrintavoAPIResponse<PrintavoOrder>>(cacheKey);
+  if (cachedResult) {
+    logger.info(`Using cached result for quote with ID: ${id}`);
+    return cachedResult;
+  }
 
-export async function addLineItemGroup(parentId: string, input: LineItemGroupCreateInput): Promise<PrintavoAPIResponse<PrintavoLineItemGroup>> {
-  return mutate(MUTATIONS.lineItemGroupCreate, { parentId, input });
-}
-
-export async function addLineItem(lineItemGroupId: string, input: LineItemCreateInput): Promise<PrintavoAPIResponse<PrintavoLineItem>> {
-  return mutate(MUTATIONS.lineItemCreate, { lineItemGroupId, input });
-}
-
-export async function addCustomAddress(parentId: string, input: CustomAddressInput): Promise<PrintavoAPIResponse<any>> {
-  return mutate(MUTATIONS.customAddressCreate, { parentId, input });
-}
-
-export async function addImprint(lineItemGroupId: string, input: ImprintCreateInput): Promise<PrintavoAPIResponse<any>> {
-  return mutate('/mutation/imprintcreate', { lineItemGroupId, input });
-}
-
-export async function updateStatus(parentId: string, statusId: string): Promise<PrintavoAPIResponse<any>> {
-  return mutate('/mutation/statusupdate', { parentId, statusId });
-}
-
-// Delete operations for cleanup
-async function deleteQuote(quoteId: string): Promise<PrintavoAPIResponse<boolean>> {
-  return mutate('/mutation/quotedelete', { id: quoteId });
-}
-
-async function deleteLineItemGroup(groupId: string): Promise<PrintavoAPIResponse<boolean>> {
-  return mutate('/mutation/lineitemgroupdelete', { id: groupId });
-}
-
-// Helper method for creating a complete quote with line items
-export async function createCompleteQuote(
-  quoteInput: QuoteCreateInput,
-  lineItemGroups: Array<{
-    group: LineItemGroupCreateInput;
-    items: LineItemCreateInput[];
-    imprints?: ImprintCreateInput[]; // Imprints are optional
-  }>
-): Promise<PrintavoAPIResponse<PrintavoOrder>> {
   try {
-    // Create the quote
-    const quoteResponse = await createQuote(quoteInput);
-    if (!quoteResponse.data || quoteResponse.errors) {
-      return quoteResponse; // Return error if quote creation fails
+    logger.info(`Fetching quote with ID: ${id}`);
+    const result = await query<{ quote: PrintavoOrder }>(quoteQueries.getQuoteById, { id });
+    
+    if (!result.data?.quote) {
+      logger.warn(`Quote not found with ID: ${id}`);
+      return { 
+        data: undefined,
+        errors: [{ message: `Quote not found with ID: ${id}` }],
+        success: false, 
+        error: new PrintavoNotFoundError(`Quote not found with ID: ${id}`) 
+      };
     }
-
-    const quoteId = quoteResponse.data.id;
-
-    // Add each line item group and its items
-    for (const groupData of lineItemGroups) {
-      const groupResponse = await addLineItemGroup(quoteId, groupData.group);
-      if (!groupResponse.data || groupResponse.errors) {
-        continue; // Skip to the next group if group creation fails
-      }
-
-      const groupId = groupResponse.data.id;
-
-      // Add line items to the group
-      for (const item of groupData.items) {
-        const itemResponse = await addLineItem(groupId, item);
-        if (!itemResponse.data || itemResponse.errors) {
-          continue; // Skip to next item if item creation fails
-        }
-        const itemId = itemResponse.data.id;
-
-        // Add imprints to the line item if provided
-        if (groupData.imprints) {
-          for (const imprint of groupData.imprints) {
-            await addImprint(itemId, imprint);
-          }
-        }
-      }
-    }
-
-    // Return the final quote
-    return getOrder(quoteId);
+    
+    logger.info(`Successfully retrieved quote: ${id}`);
+    
+    const response = { 
+      data: result.data.quote,
+      success: true 
+    };
+    
+    // Cache the successful result for 5 minutes
+    cache.set(cacheKey, response);
+    return response;
   } catch (error) {
+    logger.error(`Error fetching quote with ID ${id}:`, error);
     return {
-      errors: [{ message: error instanceof Error ? error.message : 'Failed to create complete quote' }],
-      success: false
+      data: undefined,
+      errors: [{ message: `Failed to fetch quote with ID: ${id}` }],
+      success: false,
+      error: handleAPIError(error, `Failed to fetch quote with ID: ${id}`)
     };
   }
 }
 
-// Quote Pricing Methods
-export async function calculatePricing(lineItemGroup: LineItemGroupPricingInput): Promise<PrintavoAPIResponse<LineItemPricing>> {
-    return query('/query/lineitemgrouppricing', { lineItemGroup });
-}
+// Get quote by Visual ID
+export async function getQuoteByVisualId(visualId: string): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  // Generate a cache key for this visual ID
+  const cacheKey = `quote_visual_id_${visualId}`;
   
-// Helper method for calculating quote pricing
-export async function calculateQuoteTotal(lineItems: Array<{ name: string; quantity: number; unitPrice: number }>): Promise<PrintavoAPIResponse<LineItemPricing>> {
-    return calculatePricing({
-        items: lineItems
-    });
-}
-
-// Helper method for creating a quote with products
-export async function createQuoteFromProducts(
-  quoteInput: QuoteCreateInput,
-  items: Array<{
-    productId: string;
-    quantity: number;
-    unitPrice?: number;
-  }>,
-  searchQuery?: string, // Optional search query parameter
-  options: {
-    cleanupOnFailure?: boolean; // Whether to delete the quote if some items fail
-    retryCount?: number; // Number of times to retry failed line item creations
-  } = {}
-): Promise<PrintavoAPIResponse<PrintavoOrder>> {
-  const { cleanupOnFailure = true, retryCount = 1 } = options;
-  let quoteId: string | undefined;
-  let groupId: string | undefined;
+  // Check if we have a cached result
+  const cachedResult = cache.get<PrintavoAPIResponse<PrintavoOrder>>(cacheKey);
+  if (cachedResult) {
+    logger.info(`Using cached result for quote with Visual ID: ${visualId}`);
+    return cachedResult;
+  }
 
   try {
-    // Create a Set of unique product IDs we need to find
-    const productIds = new Set(items.map(item => item.productId));
-    const productMap = new Map<string, string>();
-
-    // Determine the search query to use
-    const searchTerm = searchQuery || (productIds.size > 0 ? 
-      Array.from(productIds)[0] : // Use first product ID as fallback query
-      'product'); // Generic fallback if no specific query or products
-
-    // Fetch products to create a product ID to name map
-    const productsResponse = await query<{ products: { edges: Array<{ node: { id: string; name: string; price?: number } }> } }>(
-      QUERIES.products, 
-      { query: searchTerm }
+    logger.info(`Fetching quote with Visual ID: ${visualId}`);
+    const result = await query<{ quotes: { edges: Array<{ node: PrintavoOrder }> } }>(
+      quoteQueries.searchQuotesByVisualId, 
+      { query: visualId.trim(), first: 5 }
     );
-
-    // Track any products we couldn't find
-    const missingProducts = new Set(productIds);
-
-    // Build product map from response
-    if (productsResponse.data?.products?.edges) {
-      for (const edge of productsResponse.data.products.edges) {
-        if (productIds.has(edge.node.id)) {
-          productMap.set(edge.node.id, edge.node.name);
-          missingProducts.delete(edge.node.id);
-        }
-      }
-    }
-
-    // If we couldn't find all products, log a warning
-    if (missingProducts.size > 0) {
-      const missingIds = Array.from(missingProducts).join(', ');
-      logger.warn(`Could not find products with IDs: ${missingIds}`);
-      if (cleanupOnFailure && missingProducts.size === productIds.size) {
-        // If all products are missing and cleanup is enabled, fail early
-        return {
-          success: false,
-          errors: [{
-            message: 'None of the requested products were found',
-            extensions: { missingProductIds: Array.from(missingProducts) }
-          }]
-        };
-      }
-    }
-
-    // Create the quote first
-    const quoteResponse = await createQuote(quoteInput);
-    if (!quoteResponse.data || quoteResponse.errors) {
-      return quoteResponse;
-    }
-
-    quoteId = quoteResponse.data.id;
-
-    // Create a single line item group for all products
-    const groupResponse = await addLineItemGroup(quoteId, {
-      name: 'Product Order',
-      description: 'Order created from product catalog',
-    });
-
-    if (!groupResponse.data || groupResponse.errors) {
-      if (cleanupOnFailure && quoteId) {
-        await deleteQuote(quoteId);
-      }
-      return {
-        success: false,
-        errors: [{ message: 'Failed to create line item group' }]
+    
+    // Check if we found any quotes
+    if (!result.data?.quotes?.edges || result.data.quotes.edges.length === 0) {
+      logger.warn(`Quote not found with Visual ID: ${visualId}`);
+      return { 
+        data: undefined,
+        errors: [{ message: `Quote not found with Visual ID: ${visualId}` }],
+        success: false, 
+        error: new PrintavoNotFoundError(`Quote not found with Visual ID: ${visualId}`) 
       };
     }
-
-    groupId = groupResponse.data.id;
-
-    // Track any errors that occur during line item creation
-    const lineItemErrors: Array<{ productId: string; error: string }> = [];
-
-    // Add each product as a line item with retry logic
-    for (const item of items) {
-      const productName = productMap.get(item.productId) || `Product: ${item.productId}`;
-      let success = false;
-      let lastError: any;
-
-      // Retry loop for line item creation
-      for (let attempt = 0; attempt < retryCount && !success; attempt++) {
-        try {
-          const lineItemResponse = await addLineItem(groupId, {
-            name: productName,
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice || 0,
-          });
-
-          if (lineItemResponse.data) {
-            success = true;
-          } else {
-            lastError = lineItemResponse.errors?.[0]?.message || 'Unknown error adding line item';
-            if (attempt < retryCount - 1) {
-              // Wait before retrying (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-            }
-          }
-        } catch (error) {
-          lastError = error instanceof Error ? error.message : 'Unknown error';
-          if (attempt < retryCount - 1) {
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-          }
-        }
-      }
-
-      if (!success) {
-        lineItemErrors.push({
-          productId: item.productId,
-          error: lastError
-        });
-      }
-    }
-
-    // Get the final quote
-    const finalQuote = await getOrder(quoteId);
-
-    // If we had any errors and cleanup is enabled, we might want to delete the quote
-    if (lineItemErrors.length > 0) {
-      if (cleanupOnFailure && lineItemErrors.length === items.length) {
-        // If all items failed and cleanup is enabled, delete the quote
-        if (quoteId) {
-          await deleteQuote(quoteId);
-        }
-        return {
-          success: false,
-          errors: [{
-            message: 'Failed to add any line items to the quote',
-            extensions: { lineItemErrors }
-          }]
-        };
-      }
-
-      // If some items succeeded, include the errors in the response
-      return {
-        ...finalQuote,
-        errors: [
-          ...(finalQuote.errors || []),
-          {
-            message: 'Some line items could not be added',
-            extensions: { lineItemErrors }
-          }
-        ]
+    
+    // Find an exact match for the visual ID
+    const exactMatch = result.data.quotes.edges.find(
+      edge => edge.node.visualId === visualId
+    );
+    
+    if (exactMatch) {
+      logger.info(`Found exact match for Visual ID ${visualId} in quotes`);
+      const response = { 
+        data: exactMatch.node,
+        success: true 
       };
+      cache.set(cacheKey, response);
+      return response;
     }
-
-    return finalQuote;
+    
+    // If no exact match but we have results, use the first one
+    logger.info(`No exact match for Visual ID ${visualId} in quotes, using first result`);
+    const response = { 
+      data: result.data.quotes.edges[0].node,
+      success: true 
+    };
+    cache.set(cacheKey, response);
+    return response;
   } catch (error) {
-    // Cleanup on unexpected errors if enabled
-    if (cleanupOnFailure) {
-      if (groupId) {
-        try {
-          await deleteLineItemGroup(groupId);
-        } catch (cleanupError) {
-          logger.error('Failed to cleanup line item group:', cleanupError);
-        }
-      }
-      if (quoteId) {
-        try {
-          await deleteQuote(quoteId);
-        } catch (cleanupError) {
-          logger.error('Failed to cleanup quote:', cleanupError);
-        }
-      }
-    }
-
+    logger.error(`Error fetching quote with Visual ID ${visualId}:`, error);
     return {
-      errors: [{ message: error instanceof Error ? error.message : 'Failed to create quote from products' }],
+      data: undefined,
+      errors: [{ message: `Failed to fetch quote with Visual ID: ${visualId}` }],
       success: false,
+      error: handleAPIError(error, `Failed to fetch quote with Visual ID: ${visualId}`)
+    };
+  }
+}
+
+// Search quotes with optional filters
+export async function searchQuotes(params: {
+  query?: string;
+  first?: number;
+  statusIds?: string[];
+  sortOn?: string;
+  sortDescending?: boolean;
+} = {}): Promise<PrintavoAPIResponse<{ quotes: { edges: Array<{ node: PrintavoOrder }> } }>> {
+  try {
+    // Generate a cache key based on the search parameters
+    const cacheKey = `search_quotes_${JSON.stringify(params)}`;
+    
+    // Check if we have a cached result (2 minutes TTL for search results)
+    const cachedResult = cache.get<PrintavoAPIResponse<{ quotes: { edges: Array<{ node: PrintavoOrder }> } }>>(cacheKey);
+    if (cachedResult) {
+      logger.info(`Using cached result for quotes search with params: ${JSON.stringify(params)}`);
+      return cachedResult;
+    }
+    
+    logger.info(`Searching quotes with params: ${JSON.stringify(params)}`);
+    const result = await query<{ quotes: { edges: Array<{ node: PrintavoOrder }> } }>(
+      quoteQueries.searchQuotes,
+      { ...params, first: params.first || 10 }
+    );
+    
+    if (!result.data?.quotes?.edges) {
+      return { 
+        data: undefined,
+        errors: [{ message: `No quotes found matching query: ${params.query || ''}` }],
+        success: false, 
+        error: new PrintavoNotFoundError(`No quotes found matching query: ${params.query || ''}`) 
+      };
+    }
+    
+    const response = { 
+      data: result.data,
+      success: true 
+    };
+    
+    // Cache the successful result for 2 minutes
+    cache.set(cacheKey, response, 120000);
+    return response;
+  } catch (error) {
+    logger.error(`Error searching quotes:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: `Failed to search quotes with query: ${params.query || ''}` }],
+      success: false,
+      error: handleAPIError(error, `Failed to search quotes with query: ${params.query || ''}`)
+    };
+  }
+}
+
+// Export all quote operations
+export const quoteOperations = {
+  getQuote,
+  getQuoteByVisualId,
+  searchQuotes,
+};
+
+// Create invoice from a quote or from scratch
+export async function createInvoice(input: any): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  try {
+    logger.info(`Creating invoice with input: ${JSON.stringify(input)}`);
+    
+    // Validate required fields
+    if (!input.customerId && (!input.customerName || !input.customerEmail)) {
+      const error = new Error('Either customerId or customerName+customerEmail is required to create an invoice');
+      logger.error('Invoice creation validation error:', error);
+      return {
+        data: undefined,
+        errors: [{ message: 'validation error: Either customerId or customerName+customerEmail is required' }],
+        success: false,
+        error
+      };
+    }
+    
+    const result = await query<{ createInvoice: { invoice: PrintavoOrder } }>(
+      quoteQueries.createInvoice, 
+      { input }
+    );
+    
+    if (!result.data?.createInvoice?.invoice) {
+      logger.error('Failed to create invoice, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to create invoice' }],
+        success: false,
+        error: new Error('Failed to create invoice')
+      };
+    }
+    
+    logger.info(`Successfully created invoice: ${result.data.createInvoice.invoice.id}`);
+    return {
+      data: result.data.createInvoice.invoice,
+      success: true
+    };
+  } catch (error) {
+    logger.error('Error creating invoice:', error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to create invoice' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to create invoice')
     };
   }
 }

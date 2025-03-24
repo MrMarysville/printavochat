@@ -5,12 +5,14 @@ import {
   PrintavoLineItemGroup,
   PrintavoLineItem
 } from './types';
+import { logger } from './logger';
 
 // Generate mock data for development and testing
 export function getMockResponse<T>(endpoint: string, params: Record<string, any> = {}): PrintavoAPIResponse<T> {
-  console.log(`Generating mock data for endpoint: ${endpoint}`);
-  console.log('With parameters:', params);
+  logger.error('Mock data usage attempted when real API data is required');
+  throw new Error('Mock data is disabled. Application must use real Printavo API data.');
   
+  // The following code is unreachable but kept for reference
   // Map endpoints to mock data generators
   const mockGenerators: Record<string, () => any> = {
     '/query/order': () => generateMockOrder(params.id),

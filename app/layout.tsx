@@ -29,10 +29,10 @@ export default function RootLayout({
             <main className="flex-1">
               {children}
             </main>
+            <ChatWidget />
           </div>
+          <Toaster />
         </ToastProvider>
-        <Toaster />
-        <ChatWidget />
       </body>
     </html>
   );

@@ -1,95 +1,95 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AnalyticsDashboard } from '@/components/dashboard/AnalyticsDashboard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { RecentOrdersSummary } from '@/components/dashboard/RecentOrdersSummary';
+import { fetchRecentOrders, fetchOrdersChartData, fetchRevenueChartData } from '@/lib/graphql-client';
+import { Printer, DollarSign } from 'lucide-react';
 
-// Mock data for demonstration
-const mockRecentOrders = [
-  {
-    id: "ORD-001",
-    name: "T-Shirt Order - Acme Corp Event",
-    customer: {
-      name: "Acme Corporation",
-      id: "CUST-001"
-    },
-    date: "2023-10-15",
-    status: "In Production",
-    total: 1250.99,
-    items: 150
-  },
-  {
-    id: "ORD-002",
-    name: "Event Merchandise Pack",
-    customer: {
-      name: "TechConf 2023",
-      id: "CUST-002"
-    },
-    date: "2023-10-12",
-    status: "Completed",
-    total: 3450.50,
-    items: 250
-  },
-  {
-    id: "ORD-003",
-    name: "Promotional Hats",
-    customer: {
-      name: "Local Sports Team",
-      id: "CUST-003"
-    },
-    date: "2023-10-09",
-    status: "Pending",
-    total: 850.00,
-    items: 100
-  }
-];
-
-// Mock chart data
-const mockOrdersChartData = {
-  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  datasets: [
-    {
-      label: 'Orders',
-      data: [65, 59, 80, 81, 56, 55],
-      color: 'blue'
-    }
-  ]
+type Order = {
+  id: string;
+  name: string;
+  customer: {
+    name: string;
+    id: string;
+  };
+  date: string;
+  status: string;
+  total: number;
 };
 
-const mockRevenueChartData = {
-  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  datasets: [
-    {
-      label: 'Revenue',
-      data: [2500, 3200, 2800, 5100, 4200, 3800],
-      color: 'green'
-    }
-  ]
+type ChartData = {
+  labels: string[];
+  datasets: Array<{
+    label: string;
+    data: number[];
+    color: string;
+  }>;
+};
+
+type DashboardMetric = {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
 };
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [metrics, setMetrics] = useState<DashboardMetric[]>([]);
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
     end: new Date()
   });
 
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [orders, ordersChart, revenueChart] = await Promise.all([
+        fetchRecentOrders(),
+        fetchOrdersChartData(),
+        fetchRevenueChartData()
+      ]);
+      setRecentOrders(orders);
+
+      const totalOrders = orders.length;
+      const totalRevenue = orders.reduce((sum: number, order: Order) => sum + order.total, 0);
+
+      const fetchedMetrics: DashboardMetric[] = [
+        {
+          label: 'Total Orders',
+          value: totalOrders,
+          icon: <Printer className="h-5 w-5" />,
+          color: 'bg-blue-500'
+        },
+        {
+          label: 'Total Revenue',
+          value: `$${totalRevenue.toFixed(2)}`,
+          icon: <DollarSign className="h-5 w-5" />,
+          color: 'bg-green-500'
+        }
+      ];
+
+      setMetrics(fetchedMetrics);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [dateRange]);
+
   const handleDateRangeChange = (newRange: { start: Date; end: Date }) => {
     setDateRange(newRange);
-    // In a real app, you would fetch new data based on the date range
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
   };
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    // Simulate data refresh
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
+    loadData();
   };
 
   const handleViewOrder = (orderId: string) => {
@@ -121,7 +121,7 @@ export default function DashboardPage() {
         {/* Recent Orders */}
         <div className="lg:col-span-2">
           <RecentOrdersSummary
-            orders={mockRecentOrders}
+            orders={recentOrders}
             isLoading={isLoading}
             onViewOrder={handleViewOrder}
             onViewAll={handleViewAllOrders}
@@ -137,22 +137,9 @@ export default function DashboardPage() {
       {/* Analytics */}
       <div className="mb-6">
         <AnalyticsDashboard
-          ordersChartData={mockOrdersChartData}
-          revenueChartData={mockRevenueChartData}
-          recentOrders={mockRecentOrders.map(order => ({
-            id: order.id,
-            name: order.name,
-            customer: order.customer.name,
-            status: order.status,
-            total: order.total,
-            date: order.date
-          }))}
-          isLoading={isLoading}
-          dateRange={dateRange}
-          onDateRangeChange={handleDateRangeChange}
-          onRefresh={handleRefresh}
+          metrics={metrics}
         />
       </div>
     </div>
   );
-} 
+}

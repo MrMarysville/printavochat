@@ -1,8 +1,44 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { fetchTasks } from '@/lib/graphql-client';
+
+type Task = {
+  id: string;
+  name: string;
+};
 
 export default function Home() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const data = await fetchTasks();
+        setTasks(data || []);
+      } catch (err) {
+        console.error('Error fetching tasks:', err);
+        setError('Failed to load tasks. Using placeholder data instead.');
+        // Set some placeholder tasks even when there's an error
+        setTasks([
+          { id: 'placeholder-1', name: 'Order Management' },
+          { id: 'placeholder-2', name: 'Production Tracking' },
+          { id: 'placeholder-3', name: 'Customer Management' }
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    loadData();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
@@ -23,22 +59,33 @@ export default function Home() {
 
       {/* Features Grid */}
       <section className="py-20 bg-white px-4">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-12">
-          <div className="p-6">
-            <div className="h-12 w-12 bg-blue-100 rounded-lg mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Real-Time Order Tracking</h3>
-            <p className="text-gray-600">Monitor order progress from quote to delivery with live updates</p>
-          </div>
-          <div className="p-6">
-            <div className="h-12 w-12 bg-green-100 rounded-lg mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Integrated Production Tools</h3>
-            <p className="text-gray-600">Manage workflows, assign tasks, and track production stages</p>
-          </div>
-          <div className="p-6">
-            <div className="h-12 w-12 bg-purple-100 rounded-lg mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Customer Portal</h3>
-            <p className="text-gray-600">Provide clients with self-service order tracking and approvals</p>
-          </div>
+        <div className="max-w-6xl mx-auto">
+          {error && (
+            <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-md text-amber-800">
+              {error}
+            </div>
+          )}
+          
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-r-transparent"></div>
+              <p className="mt-4 text-gray-600">Loading features...</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-3 gap-12">
+              {tasks.map((task) => (
+                <div key={task.id} className="p-6 border rounded-lg hover:shadow-md transition-shadow">
+                  <div className="h-12 w-12 bg-blue-100 rounded-lg mb-4 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">{task.name}</h3>
+                  <p className="text-gray-600">Streamline your workflow with powerful print management tools.</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

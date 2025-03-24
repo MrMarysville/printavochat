@@ -2,20 +2,22 @@ import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { OrdersAPI, ProductsAPI, CustomersAPI, PrintavoAPIError } from '@/lib/printavo-api';
 
-interface ChatRequest {
-  messages: Array<{
+export interface ChatMessage {
+  id: string;
+  content: string;
+  role: string;
+  timestamp: string;
+  files?: Array<{
     id: string;
-    content: string;
-    role: string;
-    timestamp: string;
-    files?: Array<{
-      id: string;
-      name: string;
-      url: string;
-      type: string;
-      size: number;
-    }>;
+    name: string;
+    url: string;
+    type: string;
+    size: number;
   }>;
+}
+
+interface ChatRequest {
+  messages: ChatMessage[];
   files?: Array<{
     id: string;
     name: string;
@@ -74,27 +76,89 @@ export async function POST(request: Request) {
       } else if (documentFiles.length > 0) {
         responseMessage = `I've received ${documentFiles.length} document${documentFiles.length !== 1 ? 's' : ''}. Would you like me to review this information for your order?`;
       }
+    } else if (/^\d{4}$/.test(messageContent)) {
+      // If the message is just a 4-digit number, treat it as a visual ID
+      try {
+        const visualId = messageContent;
+        logger.info(`Detected standalone visual ID: ${visualId}`);
+        const orderData = await OrdersAPI.getOrderByVisualId(visualId);
+        responseMessage = orderData 
+          ? `Here are the details for order with Visual ID #${visualId}:` 
+          : `Sorry, I couldn't find an order with Visual ID #${visualId}. This Visual ID may not exist in the system.`;
+        
+        if (orderData) {
+          richData = {
+            type: 'order',
+            content: orderData
+          };
+        }
+      } catch (error) {
+        if (error instanceof PrintavoAPIError) {
+          // Check for 404 errors specifically
+          if (error.statusCode === 404) {
+            responseMessage = `Sorry, I couldn't find an order with Visual ID #${messageContent}. This Visual ID may not exist in the system.`;
+          } else {
+            responseMessage = `Sorry, I couldn't retrieve the order information. ${error.message}`;
+          }
+        } else {
+          throw error;
+        }
+      }
+    } else if (messageContent.includes('visual') && messageContent.includes('id')) {
+      // Check for visual ID pattern
+      const visualIdMatch = messageContent.match(/visual\s+(?:id|number)?\s*#?\s*(\d+)/i);
+      if (visualIdMatch && visualIdMatch[1]) {
+        try {
+          const visualId = visualIdMatch[1];
+          logger.info(`Detected visual ID in message: ${visualId}`);
+          const orderData = await OrdersAPI.getOrderByVisualId(visualId);
+          responseMessage = orderData 
+            ? `Here are the details for order with Visual ID #${visualId}:` 
+            : `Sorry, I couldn't find an order with Visual ID #${visualId}. This Visual ID may not exist in the system.`;
+          
+          if (orderData) {
+            richData = {
+              type: 'order',
+              content: orderData
+            };
+          }
+        } catch (error) {
+          if (error instanceof PrintavoAPIError) {
+            // Check for 404 errors specifically
+            if (error.statusCode === 404) {
+              responseMessage = `Sorry, I couldn't find an order with Visual ID #${visualIdMatch[1]}. This Visual ID may not exist in the system.`;
+            } else {
+              responseMessage = `Sorry, I couldn't retrieve the order information. ${error.message}`;
+            }
+          } else {
+            throw error;
+          }
+        }
+      }
     } else if (messageContent.includes('show') && messageContent.includes('order')) {
       try {
-        // Extract order ID or Visual ID if specified (basic pattern matching)
+        // First check for 4-digit numbers which are likely Visual IDs
+        const visualIdMatch = messageContent.match(/\b(\d{4})\b/);
+        
+        // Then check for traditional order IDs
         const orderIdMatch = messageContent.match(/order\s+(?:#|number|id|)?\s*(\w+-?\d+)/i);
-        const visualIdMatch = messageContent.match(/visual\s+(?:id|number)?\s*#?\s*(\d+)/i);
         let orderData;
         
         if (visualIdMatch && visualIdMatch[1]) {
-          // Get order by Visual ID
+          // If we have a 4-digit number, treat it as a Visual ID
           const visualId = visualIdMatch[1];
+          logger.info(`Detected Visual ID in show order command: ${visualId}`);
           orderData = await OrdersAPI.getOrderByVisualId(visualId);
           responseMessage = orderData 
             ? `Here are the details for order with Visual ID #${visualId}:` 
-            : `Sorry, I couldn't find an order with Visual ID #${visualId}.`;
+            : `Sorry, I couldn't find an order with Visual ID #${visualId}. This Visual ID may not exist in the system.`;
         } else if (orderIdMatch && orderIdMatch[1]) {
-          // Get specific order
+          // Get specific order by ID
           const orderId = orderIdMatch[1];
           orderData = await OrdersAPI.getOrder(orderId);
           responseMessage = `Here are the details for order #${orderId}:`;
         } else {
-          // Get recent orders
+          // Get recent orders if no ID specified
           orderData = await OrdersAPI.getOrders({ limit: 5 });
           responseMessage = 'Here are your recent orders:';
         }
@@ -107,9 +171,62 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         if (error instanceof PrintavoAPIError) {
-          responseMessage = `Sorry, I couldn't retrieve the order information. ${error.message}`;
+          // Check for 404 errors specifically
+          if (error.statusCode === 404) {
+            if (messageContent.match(/\b(\d{4})\b/)) {
+              const visualId = messageContent.match(/\b(\d{4})\b/)?.[1];
+              responseMessage = `Sorry, I couldn't find an order with Visual ID #${visualId}. This Visual ID may not exist in the system.`;
+            } else {
+              const orderId = messageContent.match(/order\s+(?:#|number|id|)?\s*(\w+-?\d+)/i)?.[1] || 'specified';
+              responseMessage = `Sorry, I couldn't find order #${orderId}. It may not exist in the system.`;
+            }
+          } else {
+            responseMessage = `Sorry, I couldn't retrieve the order information. ${error.message}`;
+          }
         } else {
           throw error;
+        }
+      }
+    } else if (messageContent.includes('search') && messageContent.includes('order') && messageContent.includes('visual') && messageContent.includes('id')) {
+      // Handle searching for orders with a Visual ID filter
+      try {
+        // Extract the Visual ID from the message
+        const visualIdMatch = messageContent.match(/visual\s+(?:id|number)?\s*[:#]?\s*(\d{4})/i);
+        
+        if (visualIdMatch && visualIdMatch[1]) {
+          const visualId = visualIdMatch[1];
+          logger.info(`Searching for orders with Visual ID filter: ${visualId}`);
+          
+          try {
+            // Use the searchOperations from graphql/operations to search with visual ID filter
+            const { searchOrders } = await import('../../../lib/graphql/operations/searchOperations');
+            const result = await searchOrders({ visualId });
+            
+            if (result.success && result.data && result.data.length > 0) {
+              responseMessage = `Found ${result.data.length} order(s) matching Visual ID #${visualId}:`;
+              richData = {
+                type: 'orderList',
+                content: result.data
+              };
+            } else {
+              responseMessage = `Sorry, I couldn't find any orders matching Visual ID #${visualId}. This Visual ID may not exist in the system.`;
+            }
+          } catch (error) {
+            if (error instanceof PrintavoAPIError && error.statusCode === 404) {
+              responseMessage = `Sorry, I couldn't find any orders matching Visual ID #${visualId}. This Visual ID may not exist in the system.`;
+            } else {
+              throw error; // Re-throw non-404 errors to be caught by the outer try/catch
+            }
+          }
+        } else {
+          responseMessage = `I understand you want to search for orders with a Visual ID, but I couldn't identify the ID number. Please specify a 4-digit Visual ID.`;
+        }
+      } catch (error) {
+        if (error instanceof PrintavoAPIError) {
+          responseMessage = `Sorry, I couldn't search for orders. ${error.message}`;
+        } else {
+          logger.error('Error searching orders by Visual ID:', error);
+          responseMessage = 'Sorry, there was an error processing your request.';
         }
       }
     } else if (messageContent.includes('show') && messageContent.includes('product')) {

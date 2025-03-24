@@ -97,4 +97,12 @@ export const MUTATIONS = {
       }
     }
   `,
+  invoiceCreate: gql`
+    mutation CreateInvoice($input: InvoiceCreateInput!) {
+      invoiceCreate(input: $input) {
+        id
+        name
+      }
+    }
+  `,
 };

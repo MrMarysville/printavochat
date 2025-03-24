@@ -1,0 +1,910 @@
+[
+  {
+    "graphql_data": {
+      "queries": [
+        {
+          "name": "contact",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": [
+            "id",
+            "fullName",
+            "email"
+          ]
+        },
+        {
+          "name": "orders",
+          "parameters": [
+            "inProductionAfter",
+            "inProductionBefore",
+            "statusIds",
+            "first",
+            "sortOn"
+          ],
+          "response_fields": [
+            "nodes"
+          ]
+        },
+        {
+          "name": "contacts",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last",
+            "primaryOnly",
+            "query",
+            "sortDescending",
+            "sortOn"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "customers",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "inquiries",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "invoices",
+          "parameters": [
+            "after",
+            "before",
+            "excludeStatusIds",
+            "first",
+            "inProductionAfter",
+            "inProductionBefore",
+            "last",
+            "paymentStatus",
+            "query",
+            "sortDescending",
+            "sortOn",
+            "statusIds",
+            "tags"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "merchStores",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "paymentRequests",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "products",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last",
+            "query"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "quotes",
+          "parameters": [
+            "after",
+            "before",
+            "excludeStatusIds",
+            "first",
+            "inProductionAfter",
+            "inProductionBefore",
+            "last",
+            "paymentStatus",
+            "query",
+            "sortDescending",
+            "sortOn",
+            "statusIds",
+            "tags"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "statuses",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last",
+            "type"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "tasks",
+          "parameters": [
+            "after",
+            "assigneeId",
+            "before",
+            "completed",
+            "dueAfter",
+            "dueBefore",
+            "excludedOrderStatusIds",
+            "first",
+            "includedOrderStatusIds",
+            "last",
+            "sortDescending",
+            "sortOn"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "threads",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last",
+            "onlyWithUnread"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "transactions",
+          "parameters": [
+            "after",
+            "before",
+            "first",
+            "last"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "account",
+          "parameters": [],
+          "response_fields": []
+        },
+        {
+          "name": "user",
+          "parameters": [],
+          "response_fields": []
+        },
+        {
+          "name": "customer",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "inquiry",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "invoice",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "lineItem",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "lineItemGroup",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "merchOrder",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "merchStore",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "order",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "quote",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "status",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "task",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "thread",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "transaction",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        },
+        {
+          "name": "transactionDetail",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": []
+        }
+      ],
+      "mutations": [
+        {
+          "name": "contactUpdate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "id",
+            "email"
+          ]
+        },
+        {
+          "name": "invoiceUpdate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "id",
+            "contact",
+            "customerNote",
+            "productionNote",
+            "customerDueAt",
+            "tags",
+            "shippingAddress"
+          ]
+        },
+        {
+          "name": "lineItemCreates",
+          "parameters": [
+            "input"
+          ],
+          "response_fields": [
+            "category",
+            "color",
+            "description",
+            "id",
+            "itemNumber",
+            "items",
+            "lineItemGroup",
+            "markupPercentage",
+            "merch",
+            "personalizations",
+            "poLineItem",
+            "position",
+            "price",
+            "priceReceipt",
+            "product",
+            "productStatus",
+            "sizes",
+            "taxed",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "inquiryCreate",
+          "parameters": [
+            "input: InquiryCreateInput!"
+          ],
+          "response_fields": [
+            "email",
+            "id",
+            "name",
+            "phone",
+            "request",
+            "timestamps",
+            "unread"
+          ]
+        },
+        {
+          "name": "transactionPaymentCreate",
+          "parameters": [
+            "input: TransactionPaymentCreateInput!"
+          ],
+          "response_fields": [
+            "amount",
+            "category",
+            "description",
+            "id",
+            "originatingPaymentTransaction",
+            "processing",
+            "source",
+            "timestamps",
+            "transactedFor",
+            "transactionDate"
+          ]
+        },
+        {
+          "name": "customAddressUpdate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "address1",
+            "address2",
+            "city",
+            "companyName",
+            "country",
+            "countryIso",
+            "customerName",
+            "id",
+            "name",
+            "state",
+            "stateIso",
+            "timestamps",
+            "zipCode"
+          ]
+        },
+        {
+          "name": "invoiceDuplicate",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": [
+            "amountOutstanding",
+            "amountPaid",
+            "billingAddress",
+            "contact",
+            "contractorProfile",
+            "createdAt",
+            "customerDueAt",
+            "customerNote",
+            "deliveryMethod",
+            "discount",
+            "discountAmount",
+            "discountAsPercentage",
+            "dueAt",
+            "id",
+            "invoiceAt",
+            "merch",
+            "nickname",
+            "owner",
+            "packingSlipUrl",
+            "paidInFull",
+            "paymentDueAt",
+            "paymentRequest",
+            "paymentTerm",
+            "productionNote",
+            "publicHash",
+            "publicPdf",
+            "publicUrl",
+            "salesTax",
+            "salesTaxAmount",
+            "shippingAddress",
+            "startAt",
+            "status",
+            "subtotal",
+            "tags",
+            "threadSummary",
+            "timestamps",
+            "total",
+            "totalQuantity",
+            "totalUntaxed",
+            "url",
+            "visualId",
+            "visualPoNumber",
+            "workorderUrl"
+          ]
+        },
+        {
+          "name": "feeUpdate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "amount",
+            "description",
+            "id",
+            "quantity",
+            "taxable",
+            "timestamps",
+            "unitPrice",
+            "unitPriceAsPercentage"
+          ]
+        },
+        {
+          "name": "lineItemGroupUpdates",
+          "parameters": [
+            "input"
+          ],
+          "response_fields": [
+            "enabledColumns",
+            "id",
+            "order",
+            "position",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "feeUpdates",
+          "parameters": [
+            "input: [FeeUpdatesInput!]!"
+          ],
+          "response_fields": [
+            "amount",
+            "description",
+            "id",
+            "quantity",
+            "taxable",
+            "timestamps",
+            "unitPrice",
+            "unitPriceAsPercentage"
+          ]
+        },
+        {
+          "name": "imprintCreate",
+          "parameters": [
+            "input: ImprintCreateInput!",
+            "lineItemGroupId: ID!"
+          ],
+          "response_fields": [
+            "details",
+            "id",
+            "pricingMatrixColumn",
+            "timestamps",
+            "typeOfWork"
+          ]
+        },
+        {
+          "name": "quoteDuplicate",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": [
+            "amountOutstanding",
+            "amountPaid",
+            "billingAddress",
+            "contact",
+            "contractorProfile",
+            "createdAt",
+            "customerDueAt",
+            "customerNote",
+            "deliveryMethod",
+            "discount",
+            "discountAmount",
+            "discountAsPercentage",
+            "dueAt",
+            "id",
+            "invoiceAt",
+            "merch",
+            "nickname",
+            "owner",
+            "packingSlipUrl",
+            "paidInFull",
+            "paymentDueAt",
+            "paymentRequest",
+            "paymentTerm",
+            "productionNote",
+            "publicHash",
+            "publicPdf",
+            "publicUrl",
+            "salesTax",
+            "salesTaxAmount",
+            "shippingAddress",
+            "startAt",
+            "status",
+            "subtotal",
+            "tags",
+            "threadSummary",
+            "timestamps",
+            "total",
+            "totalQuantity",
+            "totalUntaxed",
+            "url",
+            "visualId",
+            "visualPoNumber",
+            "workorderUrl"
+          ]
+        },
+        {
+          "name": "customerUpdate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "billingAddress",
+            "companyName",
+            "defaultPaymentTerm",
+            "id",
+            "internalNote",
+            "orderCount",
+            "owner",
+            "primaryContact",
+            "publicUrl",
+            "resaleNumber",
+            "salesTax",
+            "shippingAddress",
+            "taxExempt",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "lineItemUpdate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "category",
+            "color",
+            "description",
+            "id",
+            "itemNumber",
+            "items",
+            "lineItemGroup",
+            "markupPercentage",
+            "merch",
+            "personalizations",
+            "poLineItem",
+            "position",
+            "price",
+            "priceReceipt",
+            "product",
+            "productStatus",
+            "sizes",
+            "taxed",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "customAddressUpdates",
+          "parameters": [
+            "input: [CustomAddressUpdatesInput!]!"
+          ],
+          "response_fields": [
+            "address1",
+            "address2",
+            "city",
+            "companyName",
+            "country",
+            "countryIso",
+            "customerName",
+            "id",
+            "name",
+            "state",
+            "stateIso",
+            "timestamps",
+            "zipCode"
+          ]
+        },
+        {
+          "name": "contactCreate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "customer",
+            "email",
+            "fax",
+            "firstName",
+            "fullName",
+            "id",
+            "lastName",
+            "orderCount",
+            "phone",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "imprintMockupCreate",
+          "parameters": [
+            "imprintId",
+            "publicImageUrl"
+          ],
+          "response_fields": [
+            "displayThumbnail",
+            "fullImageUrl",
+            "id",
+            "mimeType",
+            "thumbnailUrl",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "taskCreate",
+          "parameters": [
+            "input: TaskCreateInput!"
+          ],
+          "response_fields": [
+            "assignedTo",
+            "completed",
+            "completedAt",
+            "completedBy",
+            "dueAt",
+            "id",
+            "name",
+            "sourcePresetTaskGroupTitle",
+            "taskable",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "lineItemCreate",
+          "parameters": [
+            "input: LineItemCreateInput!",
+            "lineItemGroupId: ID!"
+          ],
+          "response_fields": [
+            "category",
+            "color",
+            "description",
+            "id",
+            "itemNumber",
+            "items",
+            "lineItemGroup",
+            "markupPercentage",
+            "merch",
+            "personalizations",
+            "poLineItem",
+            "position",
+            "price",
+            "priceReceipt",
+            "product",
+            "productStatus",
+            "sizes",
+            "taxed",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "customerCreate",
+          "parameters": [
+            "input: CustomerCreateInput!"
+          ],
+          "response_fields": [
+            "billingAddress",
+            "companyName",
+            "defaultPaymentTerm",
+            "id",
+            "internalNote",
+            "orderCount",
+            "owner",
+            "primaryContact",
+            "publicUrl",
+            "resaleNumber",
+            "salesTax",
+            "shippingAddress",
+            "taxExempt",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "quoteUpdate",
+          "parameters": [
+            "id",
+            "input"
+          ],
+          "response_fields": [
+            "amountOutstanding",
+            "amountPaid",
+            "billingAddress",
+            "contact",
+            "contractorProfile",
+            "createdAt",
+            "customerDueAt",
+            "customerNote",
+            "deliveryMethod",
+            "discount",
+            "discountAmount",
+            "discountAsPercentage",
+            "dueAt",
+            "invoiceAt",
+            "merch",
+            "nickname",
+            "owner",
+            "packingSlipUrl",
+            "paidInFull",
+            "paymentDueAt",
+            "paymentRequest",
+            "paymentTerm",
+            "productionNote",
+            "publicHash",
+            "publicPdf",
+            "publicUrl",
+            "salesTax",
+            "salesTaxAmount",
+            "shippingAddress",
+            "startAt",
+            "status",
+            "subtotal",
+            "tags",
+            "threadSummary",
+            "timestamps",
+            "total",
+            "totalQuantity",
+            "totalUntaxed",
+            "url",
+            "visualId",
+            "visualPoNumber",
+            "workorderUrl"
+          ]
+        },
+        {
+          "name": "customAddressCreate",
+          "parameters": [
+            "input: CustomAddressInput!",
+            "parentId: ID!"
+          ],
+          "response_fields": [
+            "address1",
+            "address2",
+            "city",
+            "companyName",
+            "country",
+            "countryIso",
+            "customerName",
+            "id",
+            "name",
+            "state",
+            "stateIso",
+            "timestamps",
+            "zipCode"
+          ]
+        },
+        {
+          "name": "lineItemDelete",
+          "parameters": [
+            "id"
+          ],
+          "response_fields": [
+            "id"
+          ]
+        },
+        {
+          "name": "quoteCreate",
+          "parameters": [
+            "input: QuoteCreateInput!"
+          ],
+          "response_fields": [
+            "amountOutstanding",
+            "amountPaid",
+            "billingAddress",
+            "contact",
+            "contractorProfile",
+            "createdAt",
+            "customerDueAt",
+            "customerNote",
+            "deliveryMethod",
+            "discount",
+            "discountAmount",
+            "discountAsPercentage",
+            "dueAt",
+            "id",
+            "invoiceAt",
+            "merch",
+            "nickname",
+            "owner",
+            "packingSlipUrl",
+            "paidInFull",
+            "paymentDueAt",
+            "paymentRequest",
+            "paymentTerm",
+            "productionNote",
+            "publicHash",
+            "publicPdf",
+            "publicUrl",
+            "salesTax",
+            "salesTaxAmount",
+            "shippingAddress",
+            "startAt",
+            "status",
+            "subtotal",
+            "tags",
+            "threadSummary",
+            "timestamps",
+            "total",
+            "totalQuantity",
+            "totalUntaxed",
+            "url",
+            "visualId",
+            "visualPoNumber",
+            "workorderUrl"
+          ]
+        },
+        {
+          "name": "statusUpdate",
+          "parameters": [
+            "parentId",
+            "statusId"
+          ],
+          "response_fields": [
+            "statusUpdate"
+          ]
+        },
+        {
+          "name": "productionFileCreate",
+          "parameters": [
+            "parentId",
+            "publicFileUrl"
+          ],
+          "response_fields": [
+            "fileUrl",
+            "id",
+            "mimeType",
+            "name",
+            "timestamps"
+          ]
+        },
+        {
+          "name": "login",
+          "parameters": [
+            "deviceName",
+            "deviceToken",
+            "email",
+            "password"
+          ],
+          "response_fields": [
+            "token",
+            "user"
+          ]
+        }
+      ]
+    }
+  }
+]

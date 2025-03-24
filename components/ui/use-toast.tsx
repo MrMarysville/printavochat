@@ -14,17 +14,21 @@ export interface ToastProps {
   duration?: number;
 }
 
+export interface Toast extends ToastProps {
+  id: string;
+  visible: boolean;
+}
+
 interface ToastContextType {
-  toast: (props: ToastProps) => void;
-  dismiss: (id: string) => void;
+  toast: (_props: ToastProps) => void;
+  dismiss: (_id: string) => void;
+  toasts: Toast[];
 }
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<
-    Array<ToastProps & { id: string; visible: boolean }>
-  >([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const toast = React.useCallback(
     ({ title, description, variant = "default", duration = 5000 }: ToastProps) => {
@@ -60,7 +64,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toast, dismiss }}>
+    <ToastContext.Provider value={{ toast, dismiss, toasts }}>
       {children}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map(({ id, title, description, variant, visible }) => (
@@ -82,6 +86,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => dismiss(id)}
                 className="ml-4 text-gray-500 hover:text-gray-700"
+                aria-label="Close"
+                title="Close notification"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -102,9 +108,9 @@ export function useToast() {
 }
 
 // Simplified version without react hooks for direct import
-export const toast = (props: ToastProps) => {
+export const toast = (_props: ToastProps) => {
   // This is just a helper function - doesn't actually call useContext
   // The real implementation will be used through useToast() hook
   console.warn("This toast function should be used with useToast() hook instead");
-  return props;
+  return _props;
 }; 

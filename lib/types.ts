@@ -163,7 +163,9 @@ export interface PrintavoCustomer {
 
 export interface PrintavoOrder {
   id: string;
+  visualId: string;  // Added visualId field
   name: string;
+  orderNumber?: string;  // Added orderNumber field
   status: {
     id: string;
     name: string;
@@ -172,7 +174,41 @@ export interface PrintavoOrder {
   createdAt: string;
   updatedAt: string;
   total: number;
+  subtotal?: number;  // Added subtotal field
+  tax?: number;  // Added tax field
+  shipping?: number;  // Added shipping field
+  discount?: number;  // Added discount field
+  notes?: string;  // Added notes field
+  dueAt?: string;  // Added dueAt field
+  customerDueAt?: string;  // Added customerDueAt field
+  productionNote?: string;  // Added productionNote field
+  customerNote?: string;  // Added customerNote field
+  paymentStatus?: string;  // Added paymentStatus field
+  paymentDueAt?: string;  // Added paymentDueAt field
   lineItemGroups: PrintavoLineItemGroup[];
+  billingAddress?: {  // Added billingAddress field
+    name: string;
+    address1: string;
+    address2?: string;
+    city: string;
+    state: string;
+    country: string;
+    postalCode: string;
+  };
+  shippingAddress?: {  // Added shippingAddress field
+    name: string;
+    address1: string;
+    address2?: string;
+    city: string;
+    state: string;
+    country: string;
+    postalCode: string;
+  };
+  threadSummary?: {  // Added threadSummary field
+    lastMessage?: string;
+    previewText?: string;
+    updatedAt?: string;
+  };
   // Add other fields as needed
 }
 
@@ -180,6 +216,13 @@ export interface PrintavoLineItemGroup {
   id: string;
   name: string;
   lineItems: PrintavoLineItem[];
+  style?: { // Added style property
+    style_number?: string;
+    color?: string;
+    sizes?: any;
+  };
+  quantity?: number; // Added quantity property
+  price?: number; // Added price property
   // Add other fields as needed
 }
 

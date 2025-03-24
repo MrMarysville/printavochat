@@ -27,7 +27,7 @@ interface RecentOrdersSummaryProps {
   orders: OrderSummary[];
   title?: string;
   maxItems?: number;
-  onViewOrder?: (orderId: string) => void;
+  onViewOrder?: (_orderId: string) => void;
   onViewAll?: () => void;
   isLoading?: boolean;
 }

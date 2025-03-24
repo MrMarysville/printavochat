@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, ShoppingCart, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import Image from 'next/image';
 
 interface Product {
   id: string;
@@ -15,8 +16,8 @@ interface Product {
 
 interface ProductGalleryProps {
   products: Product[];
-  onSelectProduct?: (product: Product) => void;
-  onAddToQuote?: (products: Product[]) => void;
+  onSelectProduct?: (_product: Product) => void;
+  onAddToQuote?: (_products: Product[]) => void;
   title?: string;
 }
 
@@ -126,10 +127,12 @@ export function ProductGallery({
                 >
                   <div className="aspect-square bg-gray-100 relative">
                     {product.imageUrl ? (
-                      <img 
+                      <Image 
                         src={product.imageUrl} 
-                        alt={product.name} 
-                        className="w-full h-full object-cover"
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 300px"
+                        className="object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">

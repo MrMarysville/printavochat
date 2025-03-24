@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, X, Minimize2 } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -314,9 +315,11 @@ export default function ChatInterface() {
                   className="flex items-center p-2 rounded bg-gray-100 text-xs hover:bg-gray-200 transition"
                 >
                   {file.type.startsWith('image/') ? (
-                    <img 
+                    <Image 
                       src={file.url} 
                       alt={file.name} 
+                      width={32}
+                      height={32}
                       className="h-8 w-8 object-cover rounded mr-2" 
                     />
                   ) : (
@@ -442,6 +445,12 @@ export default function ChatInterface() {
                   {formatTimestamp(message.timestamp)}
                 </span>
               </div>
+
+              {!isConnected && message.role === 'assistant' && (
+                <div className="text-xs text-amber-600 mt-1 italic">
+                  Note: This response is from the API. Connection issues may affect data accuracy.
+                </div>
+              )}
             </div>
           ))}
           <div ref={messagesEndRef} />
@@ -463,8 +472,8 @@ export default function ChatInterface() {
           </div>
           <FileUpload 
             onFileUpload={handleFileUpload} 
-            parentType="chat"
-            parentId="chat-session"
+            _parentType="chat"
+            _parentId="chat-session"
           />
         </div>
       )}

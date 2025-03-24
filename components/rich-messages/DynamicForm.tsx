@@ -44,7 +44,7 @@ export interface DynamicFormProps {
   title?: string;
   description?: string;
   submitButtonText?: string;
-  onSubmit: (values: Record<string, any>) => void;
+  onSubmit: (_values: Record<string, any>) => void;
   onCancel?: () => void;
   initialValues?: Record<string, any>;
   isLoading?: boolean;
@@ -302,7 +302,9 @@ export function DynamicForm({
             </label>
             {description && (
               <div className="ml-2 relative -top-0.5">
-                <Info className="h-4 w-4 text-gray-400 cursor-help" title={description} />
+                <span title={description}>
+                  <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                </span>
               </div>
             )}
           </div>

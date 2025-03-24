@@ -114,6 +114,128 @@ export const QUERIES = {
       }
     }
   `,
+  orderByVisualId: gql`
+    query GetOrderByVisualId($query: String!) {
+      invoices(query: $query, first: 1) {
+        edges {
+          node {
+            id
+            name
+            orderNumber
+            status {
+              id
+              name
+            }
+            customer {
+              id
+              name
+              email
+              phone
+            }
+            createdAt
+            updatedAt
+            total
+            subtotal
+            tax
+            shipping
+            discount
+            notes
+            lineItemGroups {
+              id
+              name
+              description
+              items {
+                id
+                name
+                description
+                quantity
+                price
+                style {
+                  id
+                  name
+                  number
+                  color
+                  sizes {
+                    id
+                    name
+                    quantity
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `,
+  invoices: gql`
+    query SearchInvoices($query: String, $first: Int) {
+      invoices(query: $query, first: $first) {
+        edges {
+          node {
+            id
+            name
+            status {
+              id
+              name
+            }
+            customer {
+              id
+              name
+              email
+            }
+            createdAt
+            updatedAt
+            total
+          }
+        }
+      }
+    }
+  `,
+  orders: gql`
+    query SearchOrders($query: String, $first: Int) {
+      orders(query: $query, first: $first) {
+        edges {
+          node {
+            id
+            name
+            status {
+              id
+              name
+            }
+            customer {
+              id
+              name
+              email
+            }
+            createdAt
+            updatedAt
+            total
+          }
+        }
+      }
+    }
+  `,
+  products: gql`
+    query GetProducts($query: String!) {
+      products(query: $query) {
+        edges {
+          node {
+            id
+            name
+            description
+            price
+            category {
+              id
+              name
+            }
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    }
+  `,
   customers: gql`
     query SearchCustomers($query: String!) {
       customers(query: $query) {
@@ -123,88 +245,6 @@ export const QUERIES = {
             name
             email
             phone
-            createdAt
-            updatedAt
-          }
-        }
-      }
-    }
-  `,
-  orders: gql`
-    query SearchOrders($query: String) {
-      orders(query: $query) {
-        edges {
-          node {
-            ... on Quote {
-              id
-              name
-              status {
-                id
-                name
-              }
-              customer {
-                id
-                name
-                email
-              }
-              createdAt
-              updatedAt
-              total
-            }
-            ... on Invoice {
-              id
-              name
-              status {
-                id
-                name
-              }
-              customer {
-                id
-                name
-                email
-              }
-              createdAt
-              updatedAt
-              total
-            }
-          }
-        }
-      }
-    }
-  `,
-  products: gql`
-    query SearchProducts($query: String!) {
-      products(query: $query) {
-        edges {
-          node {
-            id
-            name
-            description
-            price
-          }
-        }
-      }
-    }
-  `,
-  orderByVisualId: gql`
-    query GetOrderByVisualId($query: String!) {
-      orders(query: $query, sortOn: VISUAL_ID, first: 1) {
-        nodes {
-          ... on Quote {
-            id
-            visualId
-            name
-            status
-            createdAt
-            updatedAt
-          }
-          ... on Invoice {
-            id
-            visualId
-            name
-            status
-            createdAt
-            updatedAt
           }
         }
       }

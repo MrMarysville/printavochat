@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { printavoService } from '@/lib/printavo-service';
 import { logger } from '@/lib/logger';
-import { PrintavoAPIError, PrintavoValidationError } from '@/lib/graphql-client';
+import { 
+  PrintavoAPIError, 
+  PrintavoValidationError,
+  PrintavoAuthenticationError,
+  PrintavoNotFoundError,
+  PrintavoRateLimitError
+} from '@/lib/printavo-api';
 
 // Types for endpoint configuration
 interface EndpointParameter {
@@ -20,7 +26,7 @@ interface _EndpointConfig {
 function validateRequiredParams(params: any, requiredParams: string[]) {
   const missingParams = requiredParams.filter(param => !params[param]);
   if (missingParams.length > 0) {
-    throw new PrintavoValidationError(`Missing required parameters: ${missingParams.join(', ')}`);
+    throw new PrintavoValidationError(`Missing required parameters: ${missingParams.join(', ')}`, 400);
   }
 }
 
@@ -37,15 +43,34 @@ export async function GET(request: Request) {
     // Handle visual ID query specifically
     if (visualId) {
       logger.info(`Processing order query by visual ID: ${visualId}`);
-      const response = await printavoService.getOrderByVisualId(visualId);
-      return NextResponse.json(response);
+      try {
+        const response = await printavoService.getOrderByVisualId(visualId);
+        logger.info(`Order lookup result for visual ID ${visualId}: ${response.success ? 'Success' : 'Failed'}`);
+        
+        if (!response.success) {
+          logger.error(`Order lookup error for visual ID ${visualId}: Failed to find order`);
+          return NextResponse.json(response, { status: 404 });
+        }
+        
+        return NextResponse.json(response);
+      } catch (error) {
+        logger.error(`Exception in order lookup for visual ID ${visualId}: ${error instanceof Error ? error.message : String(error)}`);
+        
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({
+          success: false,
+          errors: [{ message: `Failed to find order with visual ID ${visualId}: ${errorMessage}`
+ }]
+        }, { status: 404 });
+      }
     }
     
     // Check endpoint
     if (!endpoint) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Endpoint is required' 
+        errors: [{ message: 'Endpoint is required' 
+ }]
       }, { status: 400 });
     }
 
@@ -66,7 +91,8 @@ export async function GET(request: Request) {
       logger.warn(`Unrecognized endpoint: ${endpoint}`);
       return NextResponse.json({
         success: false,
-        error: 'Invalid endpoint'
+        errors: [{ message: 'Invalid endpoint'
+ }]
       }, { status: 400 });
     }
     
@@ -77,19 +103,32 @@ export async function GET(request: Request) {
     let statusCode = 500;
     let errorMessage = 'An unexpected error occurred';
     
-    if (error instanceof PrintavoValidationError) {
-      statusCode = 400;
+    if (error instanceof PrintavoAuthenticationError) {
+      statusCode = error.statusCode || 401;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoValidationError) {
+      statusCode = error.statusCode || 400;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoNotFoundError) {
+      statusCode = error.statusCode || 404;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoRateLimitError) {
+      statusCode = error.statusCode || 429;
       errorMessage = error.message;
     } else if (error instanceof PrintavoAPIError) {
       statusCode = error.statusCode || 500;
       errorMessage = error.message;
+    } else if (error instanceof SyntaxError && error.message.includes('JSON')) {
+      statusCode = 400;
+      errorMessage = 'Invalid JSON in parameters';
     } else if (error instanceof Error) {
       errorMessage = error.message;
     }
     
     return NextResponse.json({ 
-      success: false,
-      error: errorMessage 
+success: false,
+ errors: [{ message: errorMessage 
+ }]
     }, { status: statusCode });
   }
 }
@@ -102,7 +141,8 @@ export async function POST(request: Request) {
     if (!endpoint) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Endpoint is required' 
+        errors: [{ message: 'Endpoint is required' 
+ }]
       }, { status: 400 });
     }
 
@@ -110,7 +150,8 @@ export async function POST(request: Request) {
     if (!data) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Request data is required' 
+        errors: [{ message: 'Request data is required' 
+ }]
       }, { status: 400 });
     }
 
@@ -135,14 +176,19 @@ export async function POST(request: Request) {
       validateRequiredParams(data, ['lineItemGroupId', 'item']);
       response = await printavoService.createLineItem(data.lineItemGroupId, data.item);
     } else if (endpoint === '/imprint/create') {
-      validateRequiredParams(data, ['lineItemGroupId', 'imprint']);
-      response = await printavoService.createImprint(data.lineItemGroupId, data.imprint);
+     validateRequiredParams(data, ['lineItemGroupId', 'imprint']);
+     response = await printavoService.createImprint(data.lineItemGroupId, data.imprint);
+    } else if (endpoint === '/customer/create') {
+      response = await printavoService.createCustomer(data);
+    } else if (endpoint === '/invoice/create') {
+      response = await printavoService.createInvoice(data);
     } else {
       // For any other endpoints, log warning and return error
       logger.warn(`Unrecognized endpoint: ${endpoint}`);
       return NextResponse.json({
         success: false,
-        error: 'Invalid endpoint'
+        errors: [{ message: 'Invalid endpoint'
+ }]
       }, { status: 400 });
     }
     
@@ -153,19 +199,32 @@ export async function POST(request: Request) {
     let statusCode = 500;
     let errorMessage = 'An unexpected error occurred';
     
-    if (error instanceof PrintavoValidationError) {
-      statusCode = 400;
+    if (error instanceof PrintavoAuthenticationError) {
+      statusCode = error.statusCode || 401;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoValidationError) {
+      statusCode = error.statusCode || 400;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoNotFoundError) {
+      statusCode = error.statusCode || 404;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoRateLimitError) {
+      statusCode = error.statusCode || 429;
       errorMessage = error.message;
     } else if (error instanceof PrintavoAPIError) {
       statusCode = error.statusCode || 500;
       errorMessage = error.message;
+    } else if (error instanceof SyntaxError && error.message.includes('JSON')) {
+      statusCode = 400;
+      errorMessage = 'Invalid JSON in request body';
     } else if (error instanceof Error) {
       errorMessage = error.message;
     }
     
     return NextResponse.json({ 
-      success: false,
-      error: errorMessage 
+success: false,
+ errors: [{ message: errorMessage 
+ }]
     }, { status: statusCode });
   }
 }
@@ -179,14 +238,16 @@ export async function DELETE(request: Request) {
     if (!endpoint) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Endpoint is required' 
+        errors: [{ message: 'Endpoint is required' 
+ }]
       }, { status: 400 });
     }
 
     if (!id) {
       return NextResponse.json({ 
         success: false, 
-        error: 'ID is required' 
+        errors: [{ message: 'ID is required' 
+ }]
       }, { status: 400 });
     }
 
@@ -197,7 +258,8 @@ export async function DELETE(request: Request) {
     } else {
       return NextResponse.json({
         success: false,
-        error: 'Invalid endpoint'
+        errors: [{ message: 'Invalid endpoint'
+ }]
       }, { status: 400 });
     }
     
@@ -208,19 +270,32 @@ export async function DELETE(request: Request) {
     let statusCode = 500;
     let errorMessage = 'An unexpected error occurred';
     
-    if (error instanceof PrintavoValidationError) {
-      statusCode = 400;
+    if (error instanceof PrintavoAuthenticationError) {
+      statusCode = error.statusCode || 401;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoValidationError) {
+      statusCode = error.statusCode || 400;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoNotFoundError) {
+      statusCode = error.statusCode || 404;
+      errorMessage = error.message;
+    } else if (error instanceof PrintavoRateLimitError) {
+      statusCode = error.statusCode || 429;
       errorMessage = error.message;
     } else if (error instanceof PrintavoAPIError) {
       statusCode = error.statusCode || 500;
       errorMessage = error.message;
+    } else if (error instanceof SyntaxError && error.message.includes('JSON')) {
+      statusCode = 400;
+      errorMessage = 'Invalid JSON in parameters';
     } else if (error instanceof Error) {
       errorMessage = error.message;
     }
     
     return NextResponse.json({ 
-      success: false,
-      error: errorMessage 
+success: false,
+ errors: [{ message: errorMessage 
+ }]
     }, { status: statusCode });
   }
 }
