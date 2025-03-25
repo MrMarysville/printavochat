@@ -8,6 +8,7 @@ import {
   PrintavoRateLimitError
 } from './printavo-api';
 import { ConversationContext } from './context';
+import { printavoService } from './printavo-service';
 
 interface PrintavoChatMessage {
   id: string;
@@ -24,7 +25,8 @@ interface OperationResult {
 interface Operation {
   name: string;
   explanation: string;
-  execute: () => Promise<OperationResult>;
+  execute: (params: any) => Promise<any>;
+  requiredParams?: string[];
 }
 
 interface Sentiment {
@@ -73,7 +75,7 @@ function createGetOrderOperation(orderId: string, messageLower: string, sentimen
   return {
     name: 'getOrder',
     explanation: 'Fetching order details from Printavo',
-    execute: async () => {
+    execute: async (params: any) => {
       try {
         logger.info(`Attempting to fetch order: ${orderId}`);
         
@@ -134,6 +136,7 @@ function createGetOrderOperation(orderId: string, messageLower: string, sentimen
         };
       }
     },
+    requiredParams: ['orderId'],
   };
 }
 
@@ -141,7 +144,7 @@ function createOrderSearchOperation(message: string, messageLower: string, senti
   return {
     name: 'searchOrders',
     explanation: 'Searching for orders in Printavo',
-    execute: async () => {
+    execute: async (params: any) => {
       try {
         // Extract search query from message
         let searchQuery = message
@@ -214,6 +217,7 @@ function createOrderSearchOperation(message: string, messageLower: string, senti
         };
       }
     },
+    requiredParams: ['message'],
   };
 }
 
@@ -221,7 +225,7 @@ function createCustomerSearchOperation(message: string, _messageLower: string, s
   return {
     name: 'searchCustomers',
     explanation: 'Searching for customers in Printavo',
-    execute: async () => {
+    execute: async (params: any) => {
       try {
         // Extract search query from message
         const searchTermText = message
@@ -268,93 +272,140 @@ function createCustomerSearchOperation(message: string, _messageLower: string, s
         };
       }
     },
+    requiredParams: ['message'],
   };
 }
 
-export function determineOperation(message: string, context: ConversationContext, sentiment: Sentiment): Operation {
-    const messageLower = message.toLowerCase();
-
-    // Check for context-aware follow-up questions
-    if (context.lastOrderId && messageLower.match(/^(show|get|view|what('s| is))\s+(more|detail|info|status|it)/i)) {
-        return createGetOrderOperation(context.lastOrderId, messageLower, sentiment);
+export function determineOperation(input: string): Operation | null {
+  if (!input || typeof input !== 'string') {
+    return null;
+  }
+  
+  const normalizedInput = input.toLowerCase().trim();
+  
+  // Visual ID search patterns
+  // Match patterns like "show me order #1234", "find order 1234"
+  const orderVisualIdPattern = /(?:get|show|find|search|display|fetch)(?:\s+me)?\s+(?:order|quote|invoice)\s+(?:#)?(\d{4,5})/i;
+  const orderNumberPattern = /^(?:#)?(\d{4,5})$/i; // Just the order number
+  
+  if (orderVisualIdPattern.test(normalizedInput) || orderNumberPattern.test(normalizedInput)) {
+    let visualId;
+    const match1 = normalizedInput.match(orderVisualIdPattern);
+    const match2 = normalizedInput.match(orderNumberPattern);
+    
+    if (match1) {
+      visualId = match1[1];
+    } else if (match2) {
+      visualId = match2[1];
     }
-
-    // Check for empty or extremely short messages
-    if (!message.trim() || message.trim().length < 2) {
-        return {
-        name: 'default',
-        explanation: 'Handling empty or very short message',
-        execute: async () => ({
-            message: "I didn't catch that. Could you please provide more details about what you're looking for?",
-            data: null,
-        }),
-        };
+    
+    if (visualId) {
+      return {
+        name: 'getOrderByVisualId',
+        explanation: `Searching for order with visual ID: ${visualId}`,
+        execute: async () => {
+          return { visualId };
+        },
+        requiredParams: []
+      };
     }
-
-    // Check for search with visual ID filter pattern first
-    // This pattern needs to be checked before the direct visual ID lookup
-    // IMPORTANT: Exclude "find order with visual id" pattern which is handled separately
-    const searchWithVisualIdMatch = messageLower.match(/\b(search|find|look|show|display|get|list)\s+(orders?|invoices?|quotes?)\s+.*(with|having|where|filter|by).*\bvisual\s*id\s*[:#]?\s*(\d{3,4})\b/i);
-    if (searchWithVisualIdMatch && !messageLower.match(/\bfind\s+order\s+with\s+visual\s+id\s+(\d{4})\b/i)) {
-      const visualId = searchWithVisualIdMatch[4];
-      logger.info(`Detected search orders with visual ID filter: ${visualId}`);
-      return createOrderSearchOperation(message, messageLower, sentiment);
-    }
-
-    // Check for "find order with visual id XXXX" pattern
-    const findOrderWithVisualIdMatch = messageLower.match(/\bfind\s+order\s+with\s+visual\s+id\s+(\d{4})\b/i);
-    if (findOrderWithVisualIdMatch) {
-      const orderId = findOrderWithVisualIdMatch[1];
-      logger.info(`Detected direct getOrder with visual ID: ${orderId}`);
-      return createGetOrderOperation(orderId, messageLower, sentiment);
-    }
-
-    // Check for Visual ID patterns (getOrder by visual id)
-    // Only match 4-digit numbers as valid visual IDs
-    const visualIdMatch = messageLower.match(/\b(\d{4})\b/);
-    const idPrefixMatch = messageLower.match(/\bid\s*[:#]?\s*(\d{4})\b/i);
-    const visualPrefixMatch = messageLower.match(/\bvisual\s*(?:id)?\s*[:#]?\s*(\d{4})\b/i);
-
-    if (visualPrefixMatch || idPrefixMatch || visualIdMatch) {
-        const matchToUse = (visualPrefixMatch || idPrefixMatch || visualIdMatch)!;
-        const orderId = matchToUse[1];
-        logger.info(`Detected visual ID for getOrder: ${orderId}`);
-        return createGetOrderOperation(orderId, messageLower, sentiment);
-    }
-
-    // Check for invalid Visual ID format (only for the specific test case)
-    const invalidVisualIdMatch = messageLower.match(/\bvisual\s*id\s*(\d{1,3})\b/i);
-    if (invalidVisualIdMatch) {
-        logger.info(`Invalid visual ID format detected: ${invalidVisualIdMatch[1]}`);
-        // Use createCustomerSearchOperation to return a different operation name than 'getOrder'
-        return createCustomerSearchOperation(message, messageLower, sentiment);
-    }
-
-    // Check for prefixed order IDs (getOrder by id)
-    const prefixedOrderIdMatch = messageLower.match(/\b(?:inv-?|q-?|order\s*#?\s*|quote\s*#?\s*|o#|#)?(\d{3,})\b/i);
-    if (prefixedOrderIdMatch) {
-        const orderId = prefixedOrderIdMatch[1];
-        logger.info(`Detected order ID for getOrder: ${orderId}`);
-        return createGetOrderOperation(orderId, messageLower, sentiment);
-    }
-
-
-    // Check for order searches
-    if (messageLower.match(/\b(find|search|show|get|list|view|display|fetch)\s+(orders?|quotes?|invoices?)\b/i) ||
-        messageLower.match(/\b(recent|latest|new|pending|completed|all)\s+(orders?|quotes?|invoices?)\b/i)) {
-      return createOrderSearchOperation(message, messageLower, sentiment);
-    }
-
-
-    // Check for customer searches
-    if (messageLower.match(/\b(find|search|show|get|list|view|display|fetch)\s+(customers?|clients?|accounts?)\b/i)) {
-        return createCustomerSearchOperation(message, messageLower, sentiment);
-    }
-
-    // Default to order search if no other pattern matches
-    return createOrderSearchOperation(message, messageLower, sentiment);
+  }
+  
+  // Quote creation patterns
+  const createQuotePattern = /(?:create|make|generate|new|add)\s+(?:a\s+)?(?:new\s+)?(?:quote|estimate)/i;
+  
+  if (createQuotePattern.test(normalizedInput)) {
+    return {
+      name: 'createQuote',
+      explanation: 'Creating a new quote',
+      execute: async (params: any) => {
+        return params;
+      },
+      requiredParams: ['input']
+    };
+  }
+  
+  // Invoice creation patterns
+  const createInvoicePattern = /(?:create|make|generate|new|add)\s+(?:a\s+)?(?:new\s+)?(?:invoice|bill)/i;
+  
+  if (createInvoicePattern.test(normalizedInput)) {
+    return {
+      name: 'createInvoice',
+      explanation: 'Creating a new invoice',
+      execute: async (params: any) => {
+        return params;
+      },
+      requiredParams: ['input']
+    };
+  }
+  
+  // Order search patterns
+  const searchOrdersPattern = /(?:search|find|show|list|display|get)\s+(?:all\s+)?(?:orders|quotes|invoices)/i;
+  
+  if (searchOrdersPattern.test(normalizedInput)) {
+    return {
+      name: 'searchOrders',
+      explanation: 'Searching for orders',
+      execute: async (params: any) => {
+        return params;
+      }
+    };
+  }
+  
+  // No matching operation found
+  return null;
 }
 
-export async function executeOperation(operation: Operation) {
-  return operation.execute();
+export async function executeOperation(operation: Operation, params: any = {}) {
+  logger.info(`Executing operation: ${operation.name}`);
+  
+  // Check required parameters
+  if (operation.requiredParams && operation.requiredParams.length > 0) {
+    for (const param of operation.requiredParams) {
+      if (!params[param]) {
+        throw new Error(`Required parameter '${param}' is missing for operation '${operation.name}'`);
+      }
+    }
+  }
+  
+  // Execute the operation
+  try {
+    const result = await operation.execute(params);
+    logger.info(`Operation ${operation.name} executed successfully`);
+    return {
+      success: true,
+      data: result,
+      operation: operation.name
+    };
+  } catch (error) {
+    logger.error(`Error executing operation ${operation.name}:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : `${error}`,
+      operation: operation.name
+    };
+  }
+}
+
+export async function processUserInput(input: string, context: any = {}) {
+  logger.info(`Processing user input: ${input}`);
+  
+  // Determine the operation
+  const operation = determineOperation(input);
+  
+  if (!operation) {
+    logger.warn(`No operation determined for input: ${input}`);
+    return {
+      success: false,
+      error: 'I\'m not sure what you want to do. Could you please be more specific?',
+      operation: null
+    };
+  }
+  
+  logger.info(`Determined operation: ${operation.name}`);
+  
+  // Execute the operation
+  const result = await executeOperation(operation, context);
+  
+  return result;
 }

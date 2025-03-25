@@ -163,14 +163,17 @@ export async function checkApiConnection() {
 // GraphQL request function
 async function executeGraphQL(query: string, variables = {}) {
   const isBrowser = typeof window !== 'undefined';
-  logger.debug('Executing GraphQL query to:', GRAPHQL_ENDPOINT);
+  // Use the proxy API endpoint when in browser environment
+  const ENDPOINT = isBrowser ? '/api/proxy/printavo' : GRAPHQL_ENDPOINT;
+  
+  logger.debug('Executing GraphQL query to:', ENDPOINT);
   logger.debug('Query:', query.substring(0, 50) + '...');
   logger.debug('Variables:', JSON.stringify(variables).substring(0, 100));
   
   // Removed the mock data fallback for browser environment
   
   try {
-    const response = await fetch(GRAPHQL_ENDPOINT, {
+    const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -236,6 +239,9 @@ async function executeGraphQL(query: string, variables = {}) {
     throw error;
   }
 }
+
+// Export the executeGraphQL function for use in other modules
+export { executeGraphQL };
 
 // Function to create mock data for development
 function getMockData(query: string) {
@@ -359,7 +365,7 @@ export const OrdersAPI = {
                 name
               }
               contact {
-                name
+                fullName
                 email
               }
               createdAt
@@ -421,9 +427,9 @@ export const OrdersAPI = {
             name
           }
           contact {
-            name
+            fullName
             email
-            phoneNumber
+            phone
           }
           billingAddress {
             name
@@ -485,40 +491,43 @@ export const OrdersAPI = {
     const query = `
       query GetOrdersByVisualId($query: String) {
         orders(first: 10, query: $query) {
-          nodes {
-            ... on Invoice {
-              id
-              visualId
-              nickname
-              total
-              subtotal
-              createdAt
-              dueAt
-              customerDueAt
-              productionNote
-              customerNote
-              status {
+          edges {
+            node {
+              ... on Invoice {
                 id
-                name
+                visualId
+                nickname
+                total
+                subtotal
+                createdAt
+                dueAt
+                customerDueAt
+                productionNote
+                customerNote
+                status {
+                  id
+                  name
+                }
+                contact {
+                  fullName
+                  email
+                  phone
+                }
               }
-              contact {
-                name
-                email
-                phoneNumber
-              }
-            }
-            ... on Quote {
-              id
-              visualId
-              name
-              total
-              status {
+              ... on Quote {
                 id
-                name
-              }
-              contact {
-                name
-                email
+                visualId
+                nickname
+                total
+                status {
+                  id
+                  name
+                }
+                contact {
+                  fullName
+                  email
+                  phone
+                }
               }
             }
           }
@@ -532,18 +541,20 @@ export const OrdersAPI = {
       const data = await executeGraphQL(query, { query: visualId });
       logger.debug(`Query result:`, JSON.stringify(data).substring(0, 200));
       
-      if (data && data.orders && data.orders.nodes && data.orders.nodes.length > 0) {
+      if (data && data.orders && data.orders.edges && data.orders.edges.length > 0) {
+        const nodes = data.orders.edges.map((edge: any) => edge.node);
+        
         // Find an exact match for the visual ID if possible
-        const exactMatch = data.orders.nodes.find((node: any) => 
+        const exactMatch = nodes.find((node: any) => 
           node.visualId === visualId
         );
         
         if (exactMatch) {
           logger.info(`Found exact match for Visual ID ${visualId}`);
           return exactMatch;
-        } else if (data.orders.nodes.length > 0) {
+        } else if (nodes.length > 0) {
           logger.info(`No exact match for Visual ID ${visualId}, using first result`);
-          return data.orders.nodes[0];
+          return nodes[0];
         }
       }
       
@@ -593,7 +604,7 @@ export const CustomersAPI = {
               id
               name
               email
-              phoneNumber
+              phone
               companyName
               invoiceCount
               shippingAddress {
@@ -628,7 +639,7 @@ export const CustomersAPI = {
           id
           name
           email
-          phoneNumber
+          phone
           companyName
           invoiceCount
           shippingAddress {
@@ -683,7 +694,7 @@ export const CustomersAPI = {
           companyName
           primaryContact {
             id
-            name
+            fullName
             email
           }
           billingAddress {
@@ -850,5 +861,3 @@ export const ProductsAPI = {
     return data.products.edges.map((edge: any) => edge.node);
   }
 };
-
-export { executeGraphQL };

@@ -8,7 +8,7 @@ export const taskMutations = {
         title
         description
         status
-        dueDate
+        dueAt
         createdAt
         updatedAt
       }

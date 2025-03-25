@@ -43,7 +43,7 @@ export const OrdersAPI = {
               }
               contact {
                 id
-                name
+                fullName
                 email
               }
               createdAt
@@ -179,7 +179,8 @@ export const OrdersAPI = {
           name
           contact {
             id
-            name
+            fullName
+            email
           }
           status {
             id

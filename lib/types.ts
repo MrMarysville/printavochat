@@ -26,6 +26,14 @@ export interface QuoteCreateInput {
   shippingNotes?: string;
   customerNotes?: string;
   tags?: string[];
+  lineItems?: LineItemCreateInput[];
+  lineItemGroups?: LineItemGroupWithItemsInput[];
+  paymentTermId?: string;
+}
+
+export interface LineItemGroupWithItemsInput extends LineItemGroupCreateInput {
+  lineItems?: LineItemCreateInput[];
+  imprint?: ImprintInput;
 }
 
 export interface LineItemGroupCreateInput {
@@ -229,6 +237,7 @@ export interface PrintavoLineItemGroup {
 export interface PrintavoLineItem {
   id: string;
   name: string;
+  description?: string;
   quantity: number;
   price: number;
   total: number;
@@ -382,3 +391,10 @@ export const responseTypeMap: Record<string, string> = {
   '/mutation/lineitemgroupcreate': 'PrintavoLineItemGroup',
   '/mutation/lineitemcreate': 'PrintavoLineItem'
 };
+
+export interface ImprintInput {
+  typeOfWork: string;
+  details?: string;
+  pricingMatrixColumnId?: string;
+  mockupUrls?: string[];
+}

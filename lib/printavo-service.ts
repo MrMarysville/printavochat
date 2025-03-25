@@ -411,5 +411,147 @@ export const printavoService = {
       logger.error(`[PrintavoService] Error during login: ${error instanceof Error ? error.message : String(error)}`);
       throw error; // Re-throw to be handled by the API route
     }
+  },
+  
+  // Payment terms operations
+  async getPaymentTerms() {
+    logger.info(`[PrintavoService] Getting payment terms`);
+    
+    try {
+      // Use a GraphQL query to get actual payment terms from Printavo
+      const query = `
+        query {
+          paymentTerms {
+            edges {
+              node {
+                id
+                name
+                description
+                paymentWindow
+              }
+            }
+          }
+        }
+      `;
+      
+      const result = await printavoClient.request(query) as { paymentTerms?: { edges: Array<{ node: {id: string, name: string, description?: string, paymentWindow?: number} }> } };
+      
+      if (result && result.paymentTerms?.edges && result.paymentTerms.edges.length > 0) {
+        // Map the GraphQL response structure to our expected format
+        const paymentTerms = result.paymentTerms.edges.map(edge => ({
+          id: edge.node.id,
+          name: edge.node.name,
+          description: edge.node.description || `Payment due ${edge.node.paymentWindow || 0} days after creation`
+        }));
+        
+        logger.info(`[PrintavoService] Retrieved ${paymentTerms.length} payment terms from Printavo`);
+        
+        return {
+          success: true,
+          data: {
+            paymentTerms
+          }
+        };
+      } else {
+        // Fall back to default payment terms if API doesn't return any
+        logger.warn('[PrintavoService] No payment terms returned from Printavo API, using defaults');
+        return getDefaultPaymentTerms();
+      }
+    } catch (error) {
+      logger.error(`[PrintavoService] Error getting payment terms: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Return default payment terms on error
+      return getDefaultPaymentTerms();
+    }
+  },
+  
+  // Status operations
+  async getStatuses() {
+    logger.info(`[PrintavoService] Getting available statuses`);
+    
+    try {
+      // Use a GraphQL query to get order statuses
+      const query = `
+        query GetStatuses {
+          statuses(type: INVOICE) {
+            edges {
+              node {
+                id
+                name
+                color
+                position
+              }
+            }
+          }
+        }
+      `;
+      
+      const result = await printavoClient.request(query) as { 
+        statuses?: { 
+          edges: Array<{ 
+            node: {
+              id: string, 
+              name: string, 
+              color?: string,
+              position: number
+            } 
+          }> 
+        } 
+      };
+      
+      if (result && result.statuses?.edges && result.statuses.edges.length > 0) {
+        // Map the GraphQL response structure to our expected format
+        const statuses = result.statuses.edges
+          .sort((a, b) => a.node.position - b.node.position) // Sort by position
+          .map(edge => ({
+            id: edge.node.id,
+            name: edge.node.name,
+            color: edge.node.color
+          }));
+        
+        logger.info(`[PrintavoService] Retrieved ${statuses.length} statuses`);
+        
+        return {
+          success: true,
+          data: {
+            statuses
+          }
+        };
+      } else {
+        logger.warn('[PrintavoService] No statuses returned from Printavo API');
+        return {
+          success: false,
+          error: new Error('No statuses found'),
+          data: {
+            statuses: []
+          }
+        };
+      }
+    } catch (error) {
+      logger.error(`[PrintavoService] Error getting statuses: ${error instanceof Error ? error.message : String(error)}`);
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error : new Error(`Unknown error: ${error}`),
+        data: {
+          statuses: []
+        }
+      };
+    }
   }
 };
+
+// Helper function to return default payment terms
+function getDefaultPaymentTerms() {
+  return {
+    success: true,
+    data: {
+      paymentTerms: [
+        { id: "net30", name: "Net 30", description: "Payment due within 30 days" },
+        { id: "net15", name: "Net 15", description: "Payment due within 15 days" },
+        { id: "cod", name: "COD", description: "Cash on delivery" },
+        { id: "prepaid", name: "Prepaid", description: "Payment required before delivery" }
+      ]
+    }
+  };
+}

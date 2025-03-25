@@ -4,27 +4,36 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, X, Search, WifiOff, Wifi } from 'lucide-react';
+import { MessageCircle, X, Wifi, WifiOff } from 'lucide-react';
 import { checkConnection } from '@/lib/graphql-client';
 import { logger } from '@/lib/logger';
+
+// Named components for better error handling
+const ChatInterfaceError = () => (
+  <div className="bg-red-50 text-red-500 p-4 rounded-lg">
+    Failed to load chat interface. Please refresh the page.
+  </div>
+);
+ChatInterfaceError.displayName = 'ChatInterfaceError';
+
+const ChatInterfaceLoading = () => (
+  <div className="bg-secondary p-4 rounded-lg">Loading chat...</div>
+);
+ChatInterfaceLoading.displayName = 'ChatInterfaceLoading';
 
 // Dynamically import the ChatInterface component with improved error handling
 const ChatInterfaceDynamic = dynamic(
   () => import('./chat-interface').catch(err => {
     console.error('Failed to load chat interface:', err);
-    return () => (
-      <div className="bg-red-50 text-red-500 p-4 rounded-lg">
-        Failed to load chat interface. Please refresh the page.
-      </div>
-    );
+    return ChatInterfaceError;
   }),
   {
-    loading: () => <div className="bg-secondary p-4 rounded-lg">Loading chat...</div>,
+    loading: () => <ChatInterfaceLoading />,
     ssr: false // Disable server-side rendering for this component
   }
 );
 
-export default function ChatWidget(): React.ReactElement {
+function ChatWidget(): React.ReactElement {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [apiStatus, setApiStatus] = useState<{
     connected: boolean;
@@ -40,56 +49,39 @@ export default function ChatWidget(): React.ReactElement {
   
   // Check API connection status on mount
   useEffect(() => {
+    let isMounted = true;
+    
     const checkApi = async () => {
       setCheckingApi(true);
       try {
         const status = await checkConnection();
-        setApiStatus(status);
+        if (isMounted) {
+          setApiStatus(status);
+        }
       } catch (error) {
-        logger.error("Error in component when checking API connection:", error);
-        setApiStatus({
-          connected: false,
-          checked: true,
-          account: null,
-          message: error instanceof Error ? error.message : "Unknown error"
-        });
+        if (isMounted) {
+          logger.error("Error in component when checking API connection:", error);
+          setApiStatus({
+            connected: false,
+            checked: true,
+            account: null,
+            message: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
       } finally {
-        setCheckingApi(false);
+        if (isMounted) {
+          setCheckingApi(false);
+        }
       }
     };
     
     checkApi();
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, []);
-  
-  // Function to test Visual ID search
-  const testVisualIdSearch = () => {
-    if (isOpen) {
-      // If chat is open, simulate typing "visual id 9435" into the chat
-      const chatInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-      if (chatInput) {
-        chatInput.value = "visual id 9435";
-        
-        // Create and dispatch an input event
-        const inputEvent = new Event('input', { bubbles: true });
-        chatInput.dispatchEvent(inputEvent);
-        
-        // Create and dispatch a submit event on the form
-        const form = chatInput.closest('form');
-        if (form) {
-          setTimeout(() => {
-            const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-            form.dispatchEvent(submitEvent);
-          }, 500);
-        }
-      } else {
-        console.error("Couldn't find chat input field");
-      }
-    } else {
-      // Open the chat first, then test after a delay
-      setIsOpen(true);
-      setTimeout(testVisualIdSearch, 1000);
-    }
-  };
   
   // Function to manually check API connection
   const recheckApiConnection = async () => {
@@ -117,36 +109,13 @@ export default function ChatWidget(): React.ReactElement {
     <>
       {/* Chat toggle button */}
       {!isOpen && (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+        <div className="fixed bottom-4 right-4 z-50">
           <Button
             className="h-14 w-14 rounded-full shadow-lg"
             onClick={() => setIsOpen(true)}
             size="icon"
           >
             <MessageCircle className="h-6 w-6" />
-          </Button>
-          <Button
-            className="h-14 w-14 rounded-full shadow-lg bg-green-600 hover:bg-green-700"
-            onClick={testVisualIdSearch}
-            size="icon"
-            title="Test Visual ID Search (9435)"
-          >
-            <Search className="h-6 w-6" />
-          </Button>
-          <Button
-            className={`h-14 w-14 rounded-full shadow-lg ${apiStatus.connected ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
-            onClick={recheckApiConnection}
-            size="icon"
-            disabled={checkingApi}
-            title={apiStatus.checked ? (apiStatus.connected ? "Connected to Printavo API" : "Not connected to Printavo API") : "Checking API connection..."}
-          >
-            {checkingApi ? (
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-r-transparent" />
-            ) : apiStatus.connected ? (
-              <Wifi className="h-6 w-6" />
-            ) : (
-              <WifiOff className="h-6 w-6" />
-            )}
           </Button>
         </div>
       )}
@@ -167,16 +136,6 @@ export default function ChatWidget(): React.ReactElement {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={testVisualIdSearch} 
-                className="text-white hover:bg-primary/90"
-                title="Test Visual ID Search (9435)"
-              >
-                <Search className="h-4 w-4 mr-1" />
-                Test ID 9435
-              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -216,4 +175,7 @@ export default function ChatWidget(): React.ReactElement {
       )}
     </>
   );
-} 
+}
+
+ChatWidget.displayName = "ChatWidget";
+export default ChatWidget; 

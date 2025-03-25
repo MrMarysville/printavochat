@@ -37,7 +37,7 @@ export async function GET(request: Request) {
           id: result.data.id,
           visualId: result.data.visualId,
           name: result.data.name || result.data.nickname,
-          customer: result.data.customer?.name || result.data.contact?.name,
+          customer: result.data.customer?.name || result.data.contact?.fullName,
           status: result.data.status?.name,
           total: result.data.total,
           createdAt: result.data.createdAt

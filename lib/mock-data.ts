@@ -37,6 +37,7 @@ export function getMockResponse<T>(endpoint: string, params: Record<string, any>
 function generateMockOrder(id: string): PrintavoOrder {
   return {
     id: id || 'mock-order-123',
+    visualId: id || '123',
     name: `Mock Order ${id}`,
     status: { id: 'status-1', name: 'New' },
     customer: generateMockCustomer('mock-customer-1'),

@@ -5,7 +5,8 @@ import { GraphQLClient } from 'graphql-request';
 // Types are imported in other files where they are used
 import Ajv from 'ajv';
 
-const PRINTAVO_API_URL = process.env.NEXT_PUBLIC_PRINTAVO_API_URL || 'https://www.printavo.com/api/v2';
+// Use our proxy API endpoint instead of calling Printavo directly
+const PRINTAVO_API_URL = '/api/proxy/printavo';
 
 // Initialize JSON schema validator
 const ajv = new Ajv();
@@ -74,12 +75,13 @@ function _getApiCredentials() {
 
 // Initialize GraphQL client
 const apiToken = process.env.NEXT_PUBLIC_PRINTAVO_TOKEN || '';
-logger.info(`Printavo API credentials found. API URL: ${PRINTAVO_API_URL}`);
+logger.info(`Printavo API credentials found. Using proxy endpoint: ${PRINTAVO_API_URL}`);
 logger.info(`Token length: ${apiToken.length} characters`);
 
 export const printavoClient = new GraphQLClient(PRINTAVO_API_URL, {
   headers: {
-    'Authorization': `Bearer ${apiToken}`,
+    'email': process.env.NEXT_PUBLIC_PRINTAVO_EMAIL || '',
+    'token': process.env.NEXT_PUBLIC_PRINTAVO_TOKEN || '',
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },

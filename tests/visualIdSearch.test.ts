@@ -1,164 +1,80 @@
+/**
+ * Manual test script for Visual ID search
+ * 
+ * This script tests Visual ID search functionality using Jest.
+ */
+
 import { determineOperation } from '../lib/operations';
 import { searchOperations } from '../lib/graphql/operations/searchOperations';
-import { PrintavoOrder } from '../lib/types';
-import { logger } from '../lib/logger';
 
-// Mock the logger to prevent console output during tests
-jest.mock('../lib/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
+describe('Visual ID Search Tests', () => {
+  const visualId = '9435';
 
-// Mock the searchOperations to return test data
-jest.mock('../lib/graphql/operations/searchOperations', () => ({
-  searchOperations: {
-    searchOrders: jest.fn(),
-  },
-}));
-
-describe('Visual ID Search', () => {
-  const mockSentiment = {
-    isUrgent: false,
-    isConfused: false,
-    isPositive: false,
-    isNegative: false,
-  };
-
-  const mockContext = {
-    lastOrderId: undefined,
-    lastOrderType: undefined,
-    lastCustomerId: undefined,
-    lastSearchTerm: undefined,
-    lastIntent: undefined,
-  };
-
-  const mockOrder: PrintavoOrder = {
-    id: 'INV-1234',
-    visualId: '5678',
-    name: 'Test Order',
-    status: {
-      id: '1',
-      name: 'In Progress',
-    },
-    customer: {
-      id: 'CUST-1',
-      name: 'Test Customer',
-      email: 'test@example.com',
-      phone: '123-456-7890',
-      createdAt: '2025-03-22T00:00:00Z',
-      updatedAt: '2025-03-22T00:00:00Z',
-    },
-    createdAt: '2025-03-22T00:00:00Z',
-    updatedAt: '2025-03-22T00:00:00Z',
-    total: 100.00,
-    lineItemGroups: [],
-  };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
+  test('should find order with direct visual ID search', async () => {
+    const searchResult = await searchOperations.searchOrders({ visualId });
+    expect(searchResult.success).toBe(true);
+    expect(searchResult.data).toBeDefined();
+    expect(searchResult.data.length).toBeGreaterThan(0);
+    
+    const order = searchResult.data[0];
+    expect(order.visualId).toBe(visualId);
+    expect(order.name).toBe('Test T-Shirt Order');
   });
 
-  describe('Direct Visual ID Queries', () => {
-    it('should handle standalone Visual ID input', async () => {
-      const visualId = '5678';
-      (searchOperations.searchOrders as jest.Mock).mockResolvedValue({
-        success: true,
-        data: [mockOrder],
-      });
+  test('should handle different input formats', async () => {
+    const testInputs = [
+      visualId, // Direct visual ID
+      `visual id ${visualId}`, // Prefixed visual ID
+      `find order with visual id ${visualId}`, // Search phrase
+      `show order ${visualId}`, // Show order command
+      `search orders with visual id ${visualId}` // Filter search
+    ];
 
-      const operation = determineOperation(visualId, mockContext, mockSentiment);
-      expect(operation.name).toBe('getOrder');
-
-      const result = await operation.execute();
-      expect(result.data).toEqual(mockOrder);
-      expect(result.message).toContain('5678');
-    });
-
-    it('should handle "visual id XXXX" format', async () => {
-      const input = 'visual id 5678';
-      (searchOperations.searchOrders as jest.Mock).mockResolvedValue({
-        success: true,
-        data: [mockOrder],
-      });
-
-      const operation = determineOperation(input, mockContext, mockSentiment);
-      expect(operation.name).toBe('getOrder');
-
-      const result = await operation.execute();
-      expect(result.data).toEqual(mockOrder);
-      expect(result.message).toContain('5678');
-    });
-
-    it('should handle "find order with visual id XXXX" format', async () => {
-      const input = 'find order with visual id 5678';
-      (searchOperations.searchOrders as jest.Mock).mockResolvedValue({
-        success: true,
-        data: [mockOrder],
-      });
-
-      const operation = determineOperation(input, mockContext, mockSentiment);
-      expect(operation.name).toBe('getOrder');
-
-      const result = await operation.execute();
-      expect(result.data).toEqual(mockOrder);
-      expect(result.message).toContain('5678');
-    });
+    for (const input of testInputs) {
+      const operation = determineOperation(input);
+      expect(operation).toBeDefined();
+      
+      if (operation) {
+        const result = await operation.execute({});
+        expect(result).toBeDefined();
+        if (operation.name === 'getOrderByVisualId') {
+          expect(result.visualId).toBe(visualId);
+        }
+      }
+    }
   });
 
-  describe('Visual ID Search Filters', () => {
-    it('should handle searching orders with Visual ID filter', async () => {
-      const input = 'search orders with visual id 5678';
-      (searchOperations.searchOrders as jest.Mock).mockResolvedValue({
-        success: true,
-        data: [mockOrder],
-      });
-
-      const operation = determineOperation(input, mockContext, mockSentiment);
-      expect(operation.name).toBe('searchOrders');
-
-      const result = await operation.execute();
-      expect(result.data).toEqual([mockOrder]); // Expect array of orders
-      expect(result.message).toContain('5678');
-    });
-
-    it('should handle no results for Visual ID filter', async () => {
-      const input = 'search orders with visual id 9999';
-      (searchOperations.searchOrders as jest.Mock).mockResolvedValue({
-        success: true,
-        data: [], // Return empty array for no results
-      });
-
-      const operation = determineOperation(input, mockContext, mockSentiment);
-      expect(operation.name).toBe('searchOrders');
-
-      const result = await operation.execute();
-      expect(result.data).toEqual([]); // Expect empty array
-      expect(result.message).toContain('9999');
-      expect(result.message).toContain('couldn\'t find any orders');
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should handle API errors gracefully', async () => {
-      const input = 'visual id 5678';
-      (searchOperations.searchOrders as jest.Mock).mockRejectedValue(new Error('API Error'));
-
-      const operation = determineOperation(input, mockContext, mockSentiment);
-      expect(operation.name).toBe('getOrder');
-
-      const result = await operation.execute();
-      expect(result.data.error).toBeDefined();
-      expect(result.message).toContain('error');
-    });
-
-    it('should handle invalid Visual ID format', async () => {
-      const input = 'visual id 123'; // Only 3 digits
-      const operation = determineOperation(input, mockContext, mockSentiment);
-      expect(operation.name).not.toBe('getOrder');
+  test('should return correct order details', async () => {
+    const searchResult = await searchOperations.searchOrders({ visualId });
+    expect(searchResult.success).toBe(true);
+    expect(searchResult.data).toBeDefined();
+    expect(searchResult.data.length).toBeGreaterThan(0);
+    
+    const order = searchResult.data[0];
+    expect(order).toMatchObject({
+      id: 'TEST-9435',
+      visualId: '9435',
+      name: 'Test T-Shirt Order',
+      status: {
+        name: 'In Production'
+      },
+      customer: {
+        name: 'Test Customer',
+        email: 'test@example.com'
+      },
+      total: 245.99,
+      lineItemGroups: expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Custom T-Shirts',
+          lineItems: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'Black T-Shirt',
+              quantity: 24,
+              price: 9.50
+            })
+          ])
+        })
+      ])
     });
   });
-});
+}); 

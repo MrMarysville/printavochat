@@ -1,11 +1,18 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { AnalyticsDashboard } from '@/components/dashboard/AnalyticsDashboard';
-import { QuickActions } from '@/components/dashboard/QuickActions';
-import { RecentOrdersSummary } from '@/components/dashboard/RecentOrdersSummary';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchRecentOrders, fetchOrdersChartData, fetchRevenueChartData } from '@/lib/graphql-client';
-import { Printer, DollarSign } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, DollarSign, LineChart, ShoppingBag, Users, Wifi, WifiOff, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
+import { websocketService } from '@/lib/websocket-service';
+import { SmartPoller, DataChanges } from '@/lib/smart-poller';
+import { logger } from '@/lib/logger';
+import { useToast } from '@/components/ui/use-toast';
 
 type Order = {
   id: string;
@@ -19,127 +26,442 @@ type Order = {
   total: number;
 };
 
-type ChartData = {
-  labels: string[];
-  datasets: Array<{
-    label: string;
-    data: number[];
-    color: string;
-  }>;
-};
+export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshInterval, setRefreshInterval] = useState<number>(60000); // 1 minute default
+  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState<boolean>(true);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [wsStatus, setWsStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error'>('disconnected');
+  const [hasNewUpdates, setHasNewUpdates] = useState<boolean>(false);
+  const [newOrdersCount, setNewOrdersCount] = useState<number>(0);
+  const [changedOrdersCount, setChangedOrdersCount] = useState<number>(0);
+  const pollerRef = useRef<SmartPoller<Order> | null>(null);
+  const { toast } = useToast();
 
-type DashboardMetric = {
-  label: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-};
-
-export default function DashboardPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
-  const [metrics, setMetrics] = useState<DashboardMetric[]>([]);
-  const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-    end: new Date()
-  });
-
-  const loadData = async () => {
-    setIsLoading(true);
+  // Create a function to fetch orders
+  const fetchOrders = useCallback(async () => {
     try {
-      const [orders, ordersChart, revenueChart] = await Promise.all([
-        fetchRecentOrders(),
-        fetchOrdersChartData(),
-        fetchRevenueChartData()
-      ]);
-      setRecentOrders(orders);
-
-      const totalOrders = orders.length;
-      const totalRevenue = orders.reduce((sum: number, order: Order) => sum + order.total, 0);
-
-      const fetchedMetrics: DashboardMetric[] = [
-        {
-          label: 'Total Orders',
-          value: totalOrders,
-          icon: <Printer className="h-5 w-5" />,
-          color: 'bg-blue-500'
-        },
-        {
-          label: 'Total Revenue',
-          value: `$${totalRevenue.toFixed(2)}`,
-          icon: <DollarSign className="h-5 w-5" />,
-          color: 'bg-green-500'
-        }
-      ];
-
-      setMetrics(fetchedMetrics);
+      const result = await fetchRecentOrders();
+      return result;
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching orders:', error);
+      setError('Failed to load orders from Printavo. Please check your API connection.');
+      throw error;
+    }
+  }, []);
+
+  // Handle data changes
+  const handleDataChanges = useCallback((newData: Order[], changes: DataChanges<Order>) => {
+    setOrders(newData);
+    setLastRefreshed(new Date());
+    setLoading(false);
+    setHasNewUpdates(false);
+
+    // Update counts for notifications
+    if (changes.newItems.length > 0) {
+      setNewOrdersCount(changes.newItems.length);
+      toast({
+        title: `${changes.newItems.length} new order${changes.newItems.length > 1 ? 's' : ''}`,
+        description: "New orders have been received",
+        variant: "default",
+      });
+    }
+
+    if (changes.changedItems.length > 0) {
+      setChangedOrdersCount(changes.changedItems.length);
+      toast({
+        title: `${changes.changedItems.length} order${changes.changedItems.length > 1 ? 's' : ''} updated`,
+        description: "Order details have changed",
+        variant: "default",
+      });
+    }
+
+    logger.info(`Data updated: ${changes.newItems.length} new, ${changes.changedItems.length} changed, ${changes.removedItems.length} removed`);
+  }, [toast]);
+
+  // Handle polling errors
+  const handlePollingError = useCallback((error: Error) => {
+    setError(`Error fetching data: ${error.message}`);
+    setLoading(false);
+  }, []);
+
+  // Initialize smart poller
+  useEffect(() => {
+    // Create poller if it doesn't exist
+    if (!pollerRef.current) {
+      pollerRef.current = new SmartPoller<Order>({
+        fetchFn: fetchOrders,
+        interval: refreshInterval,
+        onChanges: handleDataChanges,
+        onError: handlePollingError,
+        // Extract ID for change detection
+        idExtractor: (order) => order.id,
+        // Extract fields that matter for change detection
+        fingerprintExtractor: (order) => ({
+          id: order.id,
+          status: order.status,
+          total: order.total,
+          name: order.name
+        }),
+        enableBackoff: true,
+        maxBackoffInterval: 300000, // 5 minutes max
+        resetBackoffOnChanges: true
+      });
+    }
+
+    // Start polling if auto-refresh is enabled
+    if (isAutoRefreshEnabled && pollerRef.current) {
+      pollerRef.current.start();
+    }
+
+    // First load
+    if (loading && orders.length === 0) {
+      setLoading(true);
+      fetchOrders()
+        .then(result => {
+          setOrders(result);
+          setLastRefreshed(new Date());
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('Initial load error:', err);
+          setError('Failed to load initial data');
+          setLoading(false);
+        });
+    }
+
+    // Cleanup
+    return () => {
+      if (pollerRef.current) {
+        pollerRef.current.stop();
+      }
+    };
+  }, [fetchOrders, handleDataChanges, handlePollingError, isAutoRefreshEnabled, loading, orders.length, refreshInterval]);
+
+  // Update polling interval when changed
+  useEffect(() => {
+    if (pollerRef.current) {
+      pollerRef.current.setInterval(refreshInterval);
+    }
+  }, [refreshInterval]);
+
+  // Set up WebSocket connection
+  useEffect(() => {
+    // Listen for WebSocket connection status changes
+    const statusListener = websocketService.addEventListener('connection_status', (data) => {
+      setWsStatus(data.status);
+    });
+
+    // Listen for order updates from WebSocket
+    const orderListener = websocketService.addEventListener('orders_updated', (data) => {
+      // When we get a notification about new orders, set the flag
+      setHasNewUpdates(true);
+      // Force a poll now to get the latest data
+      if (pollerRef.current) {
+        pollerRef.current.pollNow();
+      }
+    });
+
+    // Initialize connection
+    websocketService.connect();
+
+    // Clean up listeners when component unmounts
+    return () => {
+      statusListener();
+      orderListener();
+    };
+  }, []);
+
+  // Format the time since last refresh
+  const formatLastRefreshed = () => {
+    const seconds = Math.floor((new Date().getTime() - lastRefreshed.getTime()) / 1000);
+    if (seconds < 60) return `${seconds} seconds ago`;
+    return `${Math.floor(seconds / 60)} minutes ago`;
+  };
+
+  // Get WebSocket connection status icon
+  const getConnectionStatusIcon = () => {
+    switch (wsStatus) {
+      case 'connected':
+        return <Wifi className="h-4 w-4 text-green-500" />;
+      case 'connecting':
+        return <Wifi className="h-4 w-4 text-yellow-500" />;
+      case 'disconnected':
+      case 'error':
+      default:
+        return <WifiOff className="h-4 w-4 text-red-500" />;
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [dateRange]);
+  // Refresh data manually
+  const refreshData = useCallback(() => {
+    if (pollerRef.current) {
+      setLoading(true);
+      pollerRef.current.pollNow();
+    }
+  }, []);
 
-  const handleDateRangeChange = (newRange: { start: Date; end: Date }) => {
-    setDateRange(newRange);
+  // Calculate summary metrics from the actual orders
+  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+  const averageOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
+  const pendingOrders = orders.filter(order => 
+    order.status.toLowerCase() !== 'completed' && 
+    order.status.toLowerCase() !== 'delivered' && 
+    order.status.toLowerCase() !== 'closed'
+  );
+  const recentOrders = [...orders].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+  // Helper function to get status color
+  const getStatusColor = (status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('complete') || statusLower.includes('deliver')) return 'bg-green-100 text-green-800';
+    if (statusLower.includes('cancel')) return 'bg-red-100 text-red-800';
+    if (statusLower.includes('pending') || statusLower.includes('progress')) return 'bg-yellow-100 text-yellow-800';
+    if (statusLower.includes('new') || statusLower.includes('draft')) return 'bg-blue-100 text-blue-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
-  const handleRefresh = () => {
-    loadData();
-  };
-
-  const handleViewOrder = (orderId: string) => {
-    console.log(`Viewing order: ${orderId}`);
-    // In a real app, you would navigate to the order details page
-  };
-
-  const handleViewAllOrders = () => {
-    console.log('Viewing all orders');
-    // In a real app, you would navigate to the orders page
+  // Format relative time
+  const formatRelativeTime = (dateString: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+    } catch (e) {
+      return 'Unknown date';
+    }
   };
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-        <h1 className="text-3xl font-bold mb-4 md:mb-0">Dashboard</h1>
-        <div className="space-x-2">
-          <button
-            className="px-4 py-2 bg-white border rounded-md shadow-sm hover:bg-gray-50 text-sm"
-            onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Refreshing...' : 'Refresh Data'}
-          </button>
+    <main className="flex min-h-screen flex-col bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm">
+        <div className="container mx-auto py-6 px-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold">Printavo Dashboard</h1>
+            <div className="flex gap-2 items-center">
+              <div className="flex items-center text-sm text-gray-500 mr-2">
+                <span className="mr-1">Real-time:</span>
+                {getConnectionStatusIcon()}
+                {hasNewUpdates && (
+                  <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+                    Updates available
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-gray-500 mt-1 mr-2">
+                Last updated: {formatLastRefreshed()}
+              </div>
+              <div className="flex items-center mr-2">
+                <input
+                  type="checkbox"
+                  id="autoRefresh"
+                  checked={isAutoRefreshEnabled}
+                  onChange={() => {
+                    const newValue = !isAutoRefreshEnabled;
+                    setIsAutoRefreshEnabled(newValue);
+                    if (newValue && pollerRef.current) {
+                      pollerRef.current.start();
+                    } else if (!newValue && pollerRef.current) {
+                      pollerRef.current.stop();
+                    }
+                  }}
+                  className="mr-2"
+                />
+                <label htmlFor="autoRefresh" className="text-sm">Auto-refresh</label>
+              </div>
+              <select
+                value={refreshInterval}
+                onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                className="text-sm border rounded px-2 py-1"
+                disabled={!isAutoRefreshEnabled}
+              >
+                <option value={30000}>30 seconds</option>
+                <option value={60000}>1 minute</option>
+                <option value={300000}>5 minutes</option>
+                <option value={600000}>10 minutes</option>
+              </select>
+              <Button 
+                variant="outline"
+                onClick={refreshData}
+                disabled={loading}
+              >
+                {loading ? 'Refreshing...' : 'Refresh Now'}
+              </Button>
+              <Button 
+                onClick={() => {
+                  const chatButton = document.querySelector('.fixed.bottom-4.right-4 button');
+                  if (chatButton instanceof HTMLElement) {
+                    chatButton.click();
+                  }
+                }}
+              >
+                Open Chat
+              </Button>
+            </div>
+          </div>
+          <p className="text-gray-500 mt-2">Overview of your Printavo orders and business metrics</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Recent Orders */}
-        <div className="lg:col-span-2">
-          <RecentOrdersSummary
-            orders={recentOrders}
-            isLoading={isLoading}
-            onViewOrder={handleViewOrder}
-            onViewAll={handleViewAllOrders}
-          />
-        </div>
+      <div className="container mx-auto py-8 px-4">
+        {loading && orders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-gray-600">Loading your Printavo data...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+              <p className="text-red-700">{error}</p>
+            </div>
+            <Button 
+              variant="outline" 
+              className="mt-2" 
+              onClick={refreshData}
+            >
+              Try Again
+            </Button>
+          </div>
+        ) : (
+          <>
+            {/* Metric Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">From {orders.length} orders</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Average Order Value</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${averageOrderValue.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">Per order average</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{pendingOrders.length}</div>
+                  <p className="text-xs text-muted-foreground">Awaiting completion</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+                  <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{orders.length}</div>
+                  <p className="text-xs text-muted-foreground">All time</p>
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* Quick Actions */}
-        <div>
-          <QuickActions />
-        </div>
+            {/* Recent Orders & Charts */}
+            <Tabs defaultValue="recent-orders" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="recent-orders">Recent Orders</TabsTrigger>
+                <TabsTrigger value="charts">Analytics</TabsTrigger>
+              </TabsList>
+              <TabsContent value="recent-orders" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Orders</CardTitle>
+                    <CardDescription>Showing your {recentOrders.length} most recent orders from Printavo</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {loading ? (
+                      <div className="flex justify-center p-4">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : recentOrders.length === 0 ? (
+                      <div className="text-center py-4 text-gray-500">
+                        No orders found. Create an order in Printavo to see it here.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="pb-3 text-left">Order</th>
+                              <th className="pb-3 text-left">Customer</th>
+                              <th className="pb-3 text-left">Status</th>
+                              <th className="pb-3 text-left">Date</th>
+                              <th className="pb-3 text-right">Amount</th>
+                              <th className="pb-3 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {recentOrders.map((order) => (
+                              <tr key={order.id} className="border-b hover:bg-gray-50">
+                                <td className="py-3">
+                                  <Link href={`/orders/${order.id}`} className="font-medium text-blue-600 hover:underline">
+                                    {order.name}
+                                  </Link>
+                                </td>
+                                <td className="py-3">{order.customer.name}</td>
+                                <td className="py-3">
+                                  <Badge className={getStatusColor(order.status)}>
+                                    {order.status}
+                                  </Badge>
+                                </td>
+                                <td className="py-3" title={new Date(order.date).toLocaleString()}>
+                                  {formatRelativeTime(order.date)}
+                                </td>
+                                <td className="py-3 text-right">${order.total.toFixed(2)}</td>
+                                <td className="py-3 text-right">
+                                  <Link href={`/orders/${order.id}`}>
+                                    <Button variant="ghost" size="sm">View</Button>
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter>
+                    <Link href="/orders" className="text-blue-600 hover:underline text-sm">
+                      View all orders
+                    </Link>
+                  </CardFooter>
+                </Card>
+              </TabsContent>
+              <TabsContent value="charts" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Sales Over Time</CardTitle>
+                    <CardDescription>Monthly sales data from your Printavo account</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pl-2">
+                    <div className="h-[300px] flex items-center justify-center">
+                      <div className="text-center">
+                        <LineChart className="h-16 w-16 text-gray-300 mx-auto mb-2" />
+                        <p className="text-muted-foreground">Chart visualization coming soon!</p>
+                        <p className="text-sm text-muted-foreground">Statistics based on your Printavo orders</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </div>
-
-      {/* Analytics */}
-      <div className="mb-6">
-        <AnalyticsDashboard
-          metrics={metrics}
-        />
-      </div>
-    </div>
+    </main>
   );
 }

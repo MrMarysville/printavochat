@@ -8,7 +8,7 @@ export const taskQueries = {
         title
         description
         status
-        dueDate
+        dueAt
         createdAt
         updatedAt
       }
@@ -22,7 +22,7 @@ export const taskQueries = {
             id
             title
             status
-            dueDate
+            dueAt
           }
         }
       }

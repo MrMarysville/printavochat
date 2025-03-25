@@ -170,12 +170,401 @@ export async function searchQuotes(params: {
   }
 }
 
-// Export all quote operations
-export const quoteOperations = {
-  getQuote,
-  getQuoteByVisualId,
-  searchQuotes,
-};
+// Create a new quote
+export async function createQuote(input: any): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  try {
+    logger.info(`Creating quote with input: ${JSON.stringify(input)}`);
+    
+    // Validate required fields
+    if (!input.customerId && (!input.customerName || !input.customerEmail)) {
+      const error = new Error('Either customerId or customerName+customerEmail is required to create a quote');
+      logger.error('Quote creation validation error:', error);
+      return {
+        data: undefined,
+        errors: [{ message: 'validation error: Either customerId or customerName+customerEmail is required' }],
+        success: false,
+        error
+      };
+    }
+    
+    const result = await query<{ createQuote: { quote: PrintavoOrder } }>(
+      quoteQueries.createQuote, 
+      { input }
+    );
+    
+    if (!result.data?.createQuote?.quote) {
+      logger.error('Failed to create quote, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to create quote' }],
+        success: false,
+        error: new Error('Failed to create quote')
+      };
+    }
+    
+    logger.info(`Successfully created quote: ${result.data.createQuote.quote.id}`);
+    return {
+      data: result.data.createQuote.quote,
+      success: true
+    };
+  } catch (error) {
+    logger.error('Error creating quote:', error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to create quote' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to create quote')
+    };
+  }
+}
+
+// Add a line item group to a quote
+export async function addLineItemGroup(parentId: string, input: any): Promise<PrintavoAPIResponse<any>> {
+  try {
+    logger.info(`Adding line item group to ${parentId} with input: ${JSON.stringify(input)}`);
+    
+    const result = await query<{ addLineItemGroup: { lineItemGroup: any } }>(
+      quoteQueries.addLineItemGroup, 
+      { parentId, input }
+    );
+    
+    if (!result.data?.addLineItemGroup?.lineItemGroup) {
+      logger.error('Failed to add line item group, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to add line item group' }],
+        success: false,
+        error: new Error('Failed to add line item group')
+      };
+    }
+    
+    logger.info(`Successfully added line item group to ${parentId}`);
+    return {
+      data: result.data.addLineItemGroup.lineItemGroup,
+      success: true
+    };
+  } catch (error) {
+    logger.error(`Error adding line item group to ${parentId}:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to add line item group' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to add line item group')
+    };
+  }
+}
+
+// Add a line item to a line item group
+export async function addLineItem(lineItemGroupId: string, input: any): Promise<PrintavoAPIResponse<any>> {
+  try {
+    logger.info(`Adding line item to group ${lineItemGroupId} with input: ${JSON.stringify(input)}`);
+    
+    const result = await query<{ addLineItem: { lineItem: any } }>(
+      quoteQueries.addLineItem, 
+      { lineItemGroupId, input }
+    );
+    
+    if (!result.data?.addLineItem?.lineItem) {
+      logger.error('Failed to add line item, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to add line item' }],
+        success: false,
+        error: new Error('Failed to add line item')
+      };
+    }
+    
+    logger.info(`Successfully added line item to group ${lineItemGroupId}`);
+    return {
+      data: result.data.addLineItem.lineItem,
+      success: true
+    };
+  } catch (error) {
+    logger.error(`Error adding line item to group ${lineItemGroupId}:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to add line item' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to add line item')
+    };
+  }
+}
+
+// Add a custom address to a quote
+export async function addCustomAddress(quoteId: string, input: any): Promise<PrintavoAPIResponse<any>> {
+  try {
+    logger.info(`Adding custom address to quote ${quoteId} with input: ${JSON.stringify(input)}`);
+    
+    const result = await query<{ addCustomAddress: { address: any } }>(
+      quoteQueries.addCustomAddress, 
+      { quoteId, input }
+    );
+    
+    if (!result.data?.addCustomAddress?.address) {
+      logger.error('Failed to add custom address, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to add custom address' }],
+        success: false,
+        error: new Error('Failed to add custom address')
+      };
+    }
+    
+    logger.info(`Successfully added custom address to quote ${quoteId}`);
+    return {
+      data: result.data.addCustomAddress.address,
+      success: true
+    };
+  } catch (error) {
+    logger.error(`Error adding custom address to quote ${quoteId}:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to add custom address' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to add custom address')
+    };
+  }
+}
+
+// Add an imprint to a line item group
+export async function addImprint(lineItemGroupId: string, input: any): Promise<PrintavoAPIResponse<any>> {
+  try {
+    logger.info(`Adding imprint to group ${lineItemGroupId} with input: ${JSON.stringify(input)}`);
+    
+    const result = await query<{ addImprint: { imprint: any } }>(
+      quoteQueries.addImprint, 
+      { lineItemGroupId, input }
+    );
+    
+    if (!result.data?.addImprint?.imprint) {
+      logger.error('Failed to add imprint, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to add imprint' }],
+        success: false,
+        error: new Error('Failed to add imprint')
+      };
+    }
+    
+    logger.info(`Successfully added imprint to group ${lineItemGroupId}`);
+    return {
+      data: result.data.addImprint.imprint,
+      success: true
+    };
+  } catch (error) {
+    logger.error(`Error adding imprint to group ${lineItemGroupId}:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to add imprint' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to add imprint')
+    };
+  }
+}
+
+// Update the status of a quote
+export async function updateStatus(quoteId: string, statusId: string): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  try {
+    logger.info(`Updating status of quote ${quoteId} to status ${statusId}`);
+    
+    const result = await query<{ updateQuoteStatus: { quote: PrintavoOrder } }>(
+      quoteQueries.updateQuoteStatus, 
+      { quoteId, statusId }
+    );
+    
+    if (!result.data?.updateQuoteStatus?.quote) {
+      logger.error('Failed to update quote status, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to update quote status' }],
+        success: false,
+        error: new Error('Failed to update quote status')
+      };
+    }
+    
+    logger.info(`Successfully updated status of quote ${quoteId} to status ${statusId}`);
+    return {
+      data: result.data.updateQuoteStatus.quote,
+      success: true
+    };
+  } catch (error) {
+    logger.error(`Error updating status of quote ${quoteId}:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to update quote status' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to update quote status')
+    };
+  }
+}
+
+// Create a complete quote with all details in one operation
+export async function createCompleteQuote(input: any): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  try {
+    logger.info(`Creating complete quote with input: ${JSON.stringify(input)}`);
+    
+    // Validate required fields
+    if (!input.customerId && (!input.customerName || !input.customerEmail)) {
+      const error = new Error('Either customerId or customerName+customerEmail is required to create a quote');
+      logger.error('Quote creation validation error:', error);
+      return {
+        data: undefined,
+        errors: [{ message: 'validation error: Either customerId or customerName+customerEmail is required' }],
+        success: false,
+        error
+      };
+    }
+    
+    const result = await query<{ createCompleteQuote: { quote: PrintavoOrder } }>(
+      quoteQueries.createCompleteQuote, 
+      { input }
+    );
+    
+    if (!result.data?.createCompleteQuote?.quote) {
+      logger.error('Failed to create complete quote, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to create complete quote' }],
+        success: false,
+        error: new Error('Failed to create complete quote')
+      };
+    }
+    
+    logger.info(`Successfully created complete quote: ${result.data.createCompleteQuote.quote.id}`);
+    return {
+      data: result.data.createCompleteQuote.quote,
+      success: true
+    };
+  } catch (error) {
+    logger.error('Error creating complete quote:', error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to create complete quote' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to create complete quote')
+    };
+  }
+}
+
+// Calculate pricing for a quote
+export async function calculatePricing(quoteId: string): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  try {
+    logger.info(`Calculating pricing for quote ${quoteId}`);
+    
+    const result = await query<{ calculateQuotePricing: { quote: PrintavoOrder } }>(
+      quoteQueries.calculateQuotePricing, 
+      { quoteId }
+    );
+    
+    if (!result.data?.calculateQuotePricing?.quote) {
+      logger.error('Failed to calculate quote pricing, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to calculate quote pricing' }],
+        success: false,
+        error: new Error('Failed to calculate quote pricing')
+      };
+    }
+    
+    logger.info(`Successfully calculated pricing for quote ${quoteId}`);
+    return {
+      data: result.data.calculateQuotePricing.quote,
+      success: true
+    };
+  } catch (error) {
+    logger.error(`Error calculating pricing for quote ${quoteId}:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to calculate quote pricing' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to calculate quote pricing')
+    };
+  }
+}
+
+// Calculate the total for a quote
+export async function calculateQuoteTotal(quoteId: string): Promise<PrintavoAPIResponse<number>> {
+  try {
+    logger.info(`Calculating total for quote ${quoteId}`);
+    
+    const result = await query<{ calculateQuoteTotal: { total: number } }>(
+      quoteQueries.calculateQuoteTotal, 
+      { quoteId }
+    );
+    
+    if (result.data?.calculateQuoteTotal?.total === undefined) {
+      logger.error('Failed to calculate quote total, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to calculate quote total' }],
+        success: false,
+        error: new Error('Failed to calculate quote total')
+      };
+    }
+    
+    logger.info(`Successfully calculated total for quote ${quoteId}: ${result.data.calculateQuoteTotal.total}`);
+    return {
+      data: result.data.calculateQuoteTotal.total,
+      success: true
+    };
+  } catch (error) {
+    logger.error(`Error calculating total for quote ${quoteId}:`, error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to calculate quote total' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to calculate quote total')
+    };
+  }
+}
+
+// Create a quote from products
+export async function createQuoteFromProducts(input: any): Promise<PrintavoAPIResponse<PrintavoOrder>> {
+  try {
+    logger.info(`Creating quote from products with input: ${JSON.stringify(input)}`);
+    
+    // Validate required fields
+    if (!input.customerId && (!input.customerName || !input.customerEmail)) {
+      const error = new Error('Either customerId or customerName+customerEmail is required to create a quote');
+      logger.error('Quote creation validation error:', error);
+      return {
+        data: undefined,
+        errors: [{ message: 'validation error: Either customerId or customerName+customerEmail is required' }],
+        success: false,
+        error
+      };
+    }
+    
+    const result = await query<{ createQuoteFromProducts: { quote: PrintavoOrder } }>(
+      quoteQueries.createQuoteFromProducts, 
+      { input }
+    );
+    
+    if (!result.data?.createQuoteFromProducts?.quote) {
+      logger.error('Failed to create quote from products, missing data in response');
+      return {
+        data: undefined,
+        errors: [{ message: 'Failed to create quote from products' }],
+        success: false,
+        error: new Error('Failed to create quote from products')
+      };
+    }
+    
+    logger.info(`Successfully created quote from products: ${result.data.createQuoteFromProducts.quote.id}`);
+    return {
+      data: result.data.createQuoteFromProducts.quote,
+      success: true
+    };
+  } catch (error) {
+    logger.error('Error creating quote from products:', error);
+    return {
+      data: undefined,
+      errors: [{ message: 'Failed to create quote from products' }],
+      success: false,
+      error: handleAPIError(error, 'Failed to create quote from products')
+    };
+  }
+}
 
 // Create invoice from a quote or from scratch
 export async function createInvoice(input: any): Promise<PrintavoAPIResponse<PrintavoOrder>> {
@@ -224,3 +613,21 @@ export async function createInvoice(input: any): Promise<PrintavoAPIResponse<Pri
     };
   }
 }
+
+// Export all quote operations
+export const quoteOperations = {
+  getQuote,
+  getQuoteByVisualId,
+  searchQuotes,
+  createQuote,
+  addLineItemGroup,
+  addLineItem,
+  addCustomAddress,
+  addImprint,
+  updateStatus,
+  createCompleteQuote,
+  calculatePricing,
+  calculateQuoteTotal,
+  createQuoteFromProducts,
+  createInvoice
+};

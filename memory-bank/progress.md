@@ -16,6 +16,7 @@
 - ✅ Enhanced natural language processing for Visual ID queries:
     - Added pattern matching for explicit Visual ID references (e.g., "visual ID 1234")
     - Implemented support for compound queries like "find order with visual ID 1234"
+    - Added support for simpler queries like "find order 1234"
     - Updated help command to guide users on using Visual ID search
 - ✅ Implemented customer creation functionality:
     - Added `CustomerCreateInput` interface to `types.ts`
@@ -23,6 +24,27 @@
     - Created customer creation methods in `printavo-service.ts`
     - Added natural language customer creation detection in `operations.ts`
     - Enhanced help command to include customer creation option
+- ✅ Implemented quote creation via chat interface:
+    - Added conversational workflow for creating quotes in chat-commands.ts
+    - Implemented natural language processing for quote creation commands
+    - Created multi-step process for adding customer details, line items, and notes
+    - Connected to printavoService.createQuote for API integration
+    - Added robust error handling and validation
+    - Enhanced to check for existing customers by email and offer to use them
+    - Added support for creating new customers when needed
+    - Enhanced line item parsing to support style numbers, colors, and sizes
+    - Implemented detailed formatting for line item descriptions
+    - Added support for line item groups with natural language commands
+    - Implemented automatic production date calculation (2 weeks from creation, no weekends)
+    - Added payment term selection with available options from Printavo
+    - Added support for imprints (artwork) with type of work, details, and mockup URLs
+- ✅ Implemented order status update functionality:
+    - Added `getStatuses` method to fetch available statuses from Printavo API
+    - Created StatusSelect component for selecting and updating order status
+    - Updated OrderCard component to integrate status update functionality 
+    - Created utility functions for consistent status color handling
+    - Added orders management page to demonstrate status update capabilities
+    - Implemented proper error handling and user feedback for status updates
 - ✅ Created `.clinerules` file to document important project patterns and knowledge.
 - ✅ Implemented comprehensive error handling system:
     - Created specific error classes (Authentication, Validation, NotFound, RateLimit)
@@ -41,40 +63,127 @@
     - Implemented a multi-tiered approach in `searchOrders` to try documented endpoints first
     - Fixed TypeScript errors and ensured parameter consistency across all files
     - Improved error handling and logging for better diagnostics
+- ✅ Fixed authentication issues with Printavo API:
+    - Added NEXT_PUBLIC_ prefixed environment variables for client-side usage
+    - Ensured compatibility with browser and server environments
+- ✅ Enhanced order details display:
+    - Completely redesigned OrderCard component with improved UI
+    - Added detailed display of line items, notes, and addresses
+    - Improved information hierarchy and visual styling
+    - Made line items always visible by default
+    - Added proper handling of data formats for currency and dates
+    - Enhanced color coding for order status indicators
+- ✅ Removed mock data throughout the application:
+    - Updated dashboard to always use live Printavo data
+    - Updated homepage to display real orders from Printavo
+    - Added proper loading states for data fetching
+    - Improved error handling for when data cannot be fetched
+- ✅ Improved data handling and type definitions:
+    - Added description field to PrintavoLineItem interface
+    - Enhanced formatOrderForChat function to include all relevant order details
+    - Added proper type conversions for numeric values
+    - Improved handling of optional fields like shipping/billing addresses
+- ✅ Implemented real-time data updates for the dashboard:
+    - Added auto-refresh functionality with configurable intervals (30s, 1m, 5m, 10m)
+    - Implemented WebSocket service for real-time order updates
+    - Added visual indicators for WebSocket connection status
+    - Created notification system for available updates
+    - Added last updated timestamp display
+    - Implemented smart polling with change detection to reduce API load
+    - Added toast notifications for new and updated orders
+    - Created proper fingerprinting for order change detection
+- ✅ Added voice control to chat widget:
+    - Implemented wake word detection using Web Speech API
+    - Created audio recording and processing with OpenAI Whisper model
+    - Added transcription endpoint using OpenAI API
+    - Built intuitive UI with visual indicators for voice status
+    - Added support for customizable wake word (default: "printavo")
+- ✅ Updated OpenAI models for better performance:
+    - Upgraded chat processing to use gpt-4o-mini-2024-07-18 model
+    - Optimized voice transcription with whisper-1 model
+    - Created efficient processing pipeline for voice-to-text-to-response flow
 
 **To Do:**
 - **Testing:**
     - Write unit tests for new functionality.
     - Test visual ID query feature with the updated implementation.
-    - Test stability improvements.
+    - Test improved order display with various data structures.
+    - Test quote creation workflow with various natural language inputs.
+    - Test order status updates with different status types.
+    - Verify error handling improvements.
 - **UI Improvements:**
-    - Consider enhancing the chat interface to better communicate Visual ID capabilities.
-    - Add visual feedback when a Visual ID is detected in user input.
+    - ~~Add ability to update order status from the order details view.~~
+    - Improve mobile responsiveness of the order details display.
+    - Add pagination support for order listings.
+    - Add search functionality to filter orders by other criteria (customer, date, status).
+    - Enhance quote creation with validation for line items and prices.
 - **Additional Features:**
     - Implement quotes endpoint as a fallback for the invoices endpoint.
     - Add support for more complex Visual ID queries.
     - Consider adding a filter by Visual ID feature to the order search functionality.
+    - Add ability to create and edit orders directly from the UI.
+    - Enhance quote creation to support line item groups and different pricing tiers.
+- **Dashboard Improvements:**
+    - ✅ Implement real-time data updates with auto-refresh and/or polling
+    - Add chart visualization for sales trends, order volume, and revenue
+    - Enhance filtering & sorting capabilities
+    - Improve mobile experience with responsive design
+    - Add direct order management capabilities
+    - Implement global search functionality
+    - Replace basic loading spinners with skeleton loaders
+    - Optimize performance with pagination and efficient data fetching
+    - Add Printavo connection status indicator
+    - Create customizable dashboard with user preferences
 
 **Current Status:**
-- Core visual ID query functionality is implemented and operational.
+- Core visual ID query functionality is implemented and operational, including simpler query syntax.
+- Order details display has been significantly enhanced with comprehensive information and improved styling.
 - API route and supporting service functions have improved error handling.
 - Error handling has been standardized across the application with specific error types.
 - Caching mechanism implemented for improved performance of GraphQL operations.
-- Memory bank documentation is comprehensive.
+- Memory bank documentation is comprehensive and up-to-date.
 - Visual ID search now uses documented API endpoints for better reliability.
+- All parts of the application (homepage, dashboard, and chat) now consistently use live data from the Printavo API.
+- ✅ Fixed EPERM file permission issues by:
+  - Adding `.next/trace` to the `.gitignore` file
+  - Creating a `predev` script in package.json to automatically clean the trace directory before starting the development server
+  - Adding workaround in next.config.js using experimental.isrMemoryCacheSize setting
+- ✅ Quote creation is now available through the chat interface, allowing users to create quotes through natural language conversation.
 
 **Known Issues:**
-- Type validation warnings that we've addressed with type assertions, but might warrant a cleaner solution in the future.
 - The GraphQL queries might need to be updated if the Printavo API changes its structure.
+- Order data might not include all line items if they're nested in a complex structure.
+- Quote creation handles basic line items with style, color, and sizing information within line item groups.
+- Quote creation workflow doesn't allow editing items after they're added.
 
 **Next Steps:**
-- Test the implementation thoroughly with various Visual ID scenarios.
-- Consider UI improvements to better communicate Visual ID capabilities to users.
-- Explore adding a filter by Visual ID feature to the order search functionality.
-- Implement the quotes endpoint as an additional fallback for the invoices endpoint.
+- Add ability to update order status from the order details view.
+- Improve mobile responsiveness of the order details display.
+- Add pagination support for order listings.
+- Implement search functionality to filter orders by other criteria:
+  - Customer name/email
+  - Date range
+  - Order status
+  - Total amount
+- Enhance quote creation workflow:
+  - Add ability to edit or remove line items
+  - Add support for line item groups
+  - Implement better validation of prices and quantities
+  - Add preview functionality before finalizing
+- Consider adding authentication to restrict access to the application.
+- Implement webhooks for real-time order updates from Printavo.
+- Create a proper error fallback UI for when API requests fail.
+- Add analytics to track usage patterns and identify common queries.
 
 **Notes:**
-- The Visual ID query feature now prioritizes searching by Visual ID when a 4-digit number is detected.
+- The Visual ID query feature now supports simpler "find order XXXX" queries in addition to more explicit formats.
+- Order details display has been significantly enhanced with:
+    - Detailed view of line items with quantities and prices
+    - Customer information including contact details
+    - Order notes and production notes
+    - Shipping and billing addresses when available
+    - Improved visual hierarchy with color-coded status indicators
+    - Better formatting for currency and dates
 - Error handling has been significantly improved with:
     - Custom error classes for different error types (Authentication, Validation, NotFound, RateLimit)
     - Consistent error response format across all API routes
@@ -82,15 +191,4 @@
     - Proper input validation in service methods
     - Appropriate HTTP status codes for different error types
     - User-friendly error messages based on error type
-- The types for querying customers could be improved to better support search functionality.
-- Caching has been implemented with the following features:
-    - In-memory cache with TTL (Time To Live) to prevent stale data
-    - Cache implemented for getOrder, getOrderByVisualId, and searchOrders functions
-    - Different TTL values for different types of data (5 minutes for order details, 2 minutes for search results)
-    - Automatic cleanup of expired cache items
-    - Unit tests for the cache implementation
-- Visual ID search implementation has been improved with:
-    - Use of documented API endpoints (invoices) instead of undocumented ones (orders)
-    - Better fallback mechanisms for reliability
-    - Consistent parameter naming across all files
-    - Detailed documentation for future developers
+- Environment variable handling now includes both standard variables and NEXT_PUBLIC_ prefixed versions for client-side usage.

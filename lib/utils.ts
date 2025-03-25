@@ -1,6 +1,10 @@
-import { clsx, type ClassValue } from "clsx"
+import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+/**
+ * A utility function for conditionally joining class names together
+ * Using clsx and tailwind-merge for optimal class handling
+ */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -30,5 +34,8 @@ export function normalizeVisualId(visualId: string): string[] {
     formats.push(`Q-${cleanId}`);
   }
   
-  return [...new Set(formats)]; // Remove duplicates
+  // Remove duplicates using a filter instead of Set
+  return formats.filter((value, index, self) => {
+    return self.indexOf(value) === index;
+  });
 }

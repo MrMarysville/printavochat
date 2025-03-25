@@ -12,6 +12,7 @@ import { useToast } from './ui/use-toast';
 import { OrderCard } from './rich-messages/OrderCard';
 import { ProductGallery } from './rich-messages/ProductGallery';
 import { DynamicForm } from './rich-messages/DynamicForm';
+import { VoiceControl } from './VoiceControl';
 
 type MessageType = 'text' | 'file' | 'order' | 'product' | 'form' | 'dashboard';
 
@@ -56,6 +57,7 @@ export default function ChatInterface() {
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState<boolean>(true);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -138,6 +140,48 @@ export default function ChatInterface() {
     richData?: RichMessageData;
   }> => {
     try {
+      // First check if it's a Printavo query that can be processed directly
+      if (inputMessage.toLowerCase().includes('visual') || 
+          inputMessage.toLowerCase().includes('order') ||
+          inputMessage.toLowerCase().includes('invoice') ||
+          /^\d{4,5}$/.test(inputMessage.trim())) {
+            
+        // It might be a Printavo specific query, let's try our direct processing method
+        try {
+          const apiUrl = '/api/chat'; // Use our custom API endpoint
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  id: Date.now().toString(),
+                  content: inputMessage,
+                  role: 'user',
+                  timestamp: new Date().toISOString(),
+                }
+              ],
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return {
+            message: data.message,
+            richData: data.richData
+          };
+        } catch (error) {
+          logger.error('Error processing Printavo query:', error);
+          throw error;
+        }
+      }
+
+      // For non-Printavo or fallback queries, use the standard API
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -394,6 +438,60 @@ export default function ChatInterface() {
     }
   };
 
+  // Handle voice input
+  const handleVoiceInput = (text: string) => {
+    if (!text.trim()) return;
+    
+    logger.info('Voice input received:', text);
+    
+    // Set the input field with the transcribed text
+    setInput(text);
+    
+    // Automatically submit after voice input
+    const userMessage: ChatMessageType = {
+      id: Date.now().toString(),
+      content: text,
+      role: 'user',
+      timestamp: new Date().toISOString(),
+      messageType: 'text'
+    };
+    
+    setMessages(prevMessages => [...prevMessages, userMessage]);
+    setInput('');
+    setIsLoading(true);
+    
+    // Process the message
+    processMessage(text)
+      .then(response => {
+        const assistantMessage: ChatMessageType = {
+          id: (Date.now() + 1).toString(),
+          content: response.message,
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          richData: response.richData,
+          messageType: response.richData?.type || 'text'
+        };
+        
+        setMessages(prevMessages => [...prevMessages, assistantMessage]);
+      })
+      .catch(error => {
+        logger.error('Error processing voice message:', error);
+        
+        const errorMessage: ChatMessageType = {
+          id: (Date.now() + 1).toString(),
+          content: 'Sorry, I had trouble processing your voice input. Could you try again?',
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          messageType: 'text'
+        };
+        
+        setMessages(prevMessages => [...prevMessages, errorMessage]);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
+
   if (isMinimized) {
     return (
       <div className="fixed bottom-4 right-4 w-16 h-16 bg-primary rounded-full shadow-lg cursor-pointer flex items-center justify-center"
@@ -496,6 +594,11 @@ export default function ChatInterface() {
             placeholder="Type your message..."
             disabled={isLoading || !isConnected}
             className="flex-1"
+          />
+          <VoiceControl 
+            onSpeechInput={handleVoiceInput} 
+            disabled={isLoading}
+            wakeWord="printavo"
           />
           <Button type="submit" disabled={isLoading || !isConnected || !input.trim()}>
             <Send className="h-4 w-4" />

@@ -82,12 +82,58 @@ export const searchQueries = {
         edges {
           cursor
           node {
-            ...OrderFields
             __typename
+            ... on Order {
+              ...OrderFields
+            }
             ... on Quote {
+              id
+              visualId
+              name
+              orderNumber
+              status {
+                id
+                name
+              }
+              customer {
+                id
+                name
+                email
+                phone
+              }
+              createdAt
+              updatedAt
+              total
+              subtotal
+              tax
+              shipping
+              discount
+              notes
               quoteSpecificField
             }
             ... on Invoice {
+              id
+              visualId
+              name
+              orderNumber
+              status {
+                id
+                name
+              }
+              customer {
+                id
+                name
+                email
+                phone
+              }
+              createdAt
+              updatedAt
+              total
+              subtotal
+              tax
+              shipping
+              discount
+              notes
               dueDate
               paymentTerms
               paymentStatus
@@ -107,17 +153,106 @@ export const searchQueries = {
 
   // Visual ID specific search with optimized fields
   visualIdSearch: gql`
-    ${orderFields}
     query VisualIdSearch($visualId: String!) {
       orders: allOrders(visualId: $visualId, first: 1) {
         edges {
           node {
-            ...OrderFields
             __typename
+            ... on Order {
+              id
+              visualId
+              name
+              orderNumber
+              status {
+                id
+                name
+              }
+              customer {
+                id
+                name
+                email
+                phone
+              }
+              createdAt
+              updatedAt
+              total
+              subtotal
+              tax
+              shipping
+              discount
+              notes
+              lineItemGroups {
+                id
+                name
+                description
+                items {
+                  id
+                  name
+                  description
+                  quantity
+                  price
+                  style {
+                    id
+                    name
+                    number
+                    color
+                    sizes {
+                      id
+                      name
+                      quantity
+                    }
+                  }
+                }
+              }
+            }
             ... on Quote {
+              id
+              visualId
+              name
+              orderNumber
+              status {
+                id
+                name
+              }
+              customer {
+                id
+                name
+                email
+                phone
+              }
+              createdAt
+              updatedAt
+              total
+              subtotal
+              tax
+              shipping
+              discount
+              notes
               quoteSpecificField
             }
             ... on Invoice {
+              id
+              visualId
+              name
+              orderNumber
+              status {
+                id
+                name
+              }
+              customer {
+                id
+                name
+                email
+                phone
+              }
+              createdAt
+              updatedAt
+              total
+              subtotal
+              tax
+              shipping
+              discount
+              notes
               dueDate
               paymentTerms
               paymentStatus

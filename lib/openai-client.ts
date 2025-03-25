@@ -51,16 +51,18 @@ export async function processWithGPT(messages: PrintavoChatMessage[]): Promise<{
 }> {
   try {
     // Add system message at the beginning if not already present
+    const processMessages = [...messages];
     if (messages.length === 0 || (messages[0].role as string) !== 'system') {
-      messages.unshift({
+      // Use the ChatCompletionMessage directly without our custom type
+      processMessages.unshift({
         role: 'system',
         content: systemPrompt
-      } as PrintavoChatMessage);
+      } as any);
     }
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages,
+      model: 'gpt-4o-mini-2024-07-18',
+      messages: processMessages,
       temperature: 0.7,
       max_tokens: 2000,
       tools: [

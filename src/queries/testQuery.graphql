@@ -1,8 +1,10 @@
 query TestQuery {
   tasks(first: 1) {
-    nodes {
-      id
-      name
+    edges {
+      node {
+        id
+        name
+      }
     }
   }
 }

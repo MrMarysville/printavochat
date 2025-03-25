@@ -133,12 +133,12 @@ async function executeOperation(operation: string, params: Record<string, any>):
       case 'createQuote':
         return await quoteOperations.createQuote(params.input);
       case 'createQuoteFromProducts':
-        return await quoteOperations.createQuoteFromProducts(
-          params.quoteInput,
-          params.items,
-          params.searchQuery,
-          params.options
-        );
+        return await quoteOperations.createQuoteFromProducts({
+          ...params.quoteInput,
+          items: params.items,
+          searchQuery: params.searchQuery,
+          options: params.options
+        });
       case 'calculateQuoteTotal':
         return await quoteOperations.calculateQuoteTotal(params.lineItems);
         
@@ -271,10 +271,10 @@ export async function createSimpleQuote(
       // No name field in the actual QuoteCreateInput type
     };
     
-    return await quoteOperations.createQuoteFromProducts(
-      quoteInput,
+    return await quoteOperations.createQuoteFromProducts({
+      ...quoteInput,
       items
-    );
+    });
   } catch (error) {
     logger.error('Error creating simple quote:', error);
     return {
