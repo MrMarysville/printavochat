@@ -47,13 +47,16 @@ export interface DataChanges<T> {
 export class SmartPoller<T> {
   private options: PollingOptions<T>;
   private timer: NodeJS.Timeout | null = null;
-  private lastData: T[] = [];
+  private lastData: T[] | null = null;
   private lastDataMap = new Map<string, T>();
   private lastFingerprintMap = new Map<string, any>();
   private currentInterval: number;
   private consecutiveNoChanges = 0;
-  private isPolling = false;
+  private isPolling: boolean = false;
   private lastPollTime = 0;
+  private lastError: Error | null = null;
+  private failedAttempts: number = 0;
+  private maxRetries: number = 3;
   
   constructor(options: PollingOptions<T>) {
     this.options = {
@@ -159,15 +162,24 @@ export class SmartPoller<T> {
       }
       
       // Call the onChange handler if there are changes
-      if (changes.hasChanges || this.lastData.length === 0) {
+      if (changes.hasChanges || this.lastData?.length === 0) {
         this.options.onChanges(newData, changes);
       }
       
       return changes;
     } catch (error) {
+      this.failedAttempts++;
+      this.lastError = error as Error;
+      
       logger.error('Error during smart polling:', error);
       if (this.options.onError && error instanceof Error) {
         this.options.onError(error);
+      }
+      
+      if (this.failedAttempts >= this.maxRetries) {
+        // Reset polling if we've failed too many times
+        this.stop();
+        // Don't restart automatically as this could cause more issues
       }
       
       return {
@@ -175,7 +187,7 @@ export class SmartPoller<T> {
         newItems: [],
         removedItems: [],
         changedItems: [],
-        unchangedItems: this.lastData
+        unchangedItems: this.lastData || []
       };
     }
   }
@@ -184,8 +196,16 @@ export class SmartPoller<T> {
    * Schedule the next poll
    */
   private poll(): void {
+    if (!this.isPolling) {
+      return; // Don't poll if we've been stopped
+    }
+    
     this.doPoll().finally(() => {
       if (this.isPolling) {
+        // Clean up any existing timer first to prevent leaks
+        if (this.timer) {
+          clearTimeout(this.timer);
+        }
         this.timer = setTimeout(() => this.poll(), this.currentInterval);
       }
     });

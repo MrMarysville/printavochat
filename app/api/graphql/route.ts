@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { query, variables } = body;
+    const { query, variables, operationName } = body;
 
     // Validate required fields
     if (!query) {
@@ -47,10 +47,19 @@ export async function POST(request: Request) {
       throw new GraphQLValidationError('Variables must be an object');
     }
 
-    logger.info('Processing GraphQL request');
+    // Validate operation name is provided and not empty
+    if (!operationName || operationName.trim() === '') {
+      logger.warn('Missing or empty operation name in GraphQL request');
+      return NextResponse.json(
+        { error: 'Operation name is required and cannot be empty' },
+        { status: 400 }
+      );
+    }
+
+    logger.info('Processing GraphQL request', { operationName });
     
     try {
-      const result = await executeGraphQL(query, variables || {});
+      const result = await executeGraphQL(query, variables || {}, operationName);
       
       // Check for GraphQL errors in the response
       if (result.errors) {

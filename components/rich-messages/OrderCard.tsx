@@ -71,7 +71,7 @@ export function OrderCard({
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm bg-white">
       {/* Header */}
-      <div className="p-4 flex justify-between items-center bg-blue-50 border-b">
+      <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-blue-50 border-b">
         <div className="flex items-center">
           <Printer className="h-5 w-5 text-blue-600 mr-2" />
           <div>
@@ -79,10 +79,11 @@ export function OrderCard({
               Order {order.visualId} 
             </h3>
             <div className="flex items-center text-xs text-gray-600">
-              <span className="truncate">ID: {order.id}</span>
+              <span className="truncate max-w-[10rem] sm:max-w-[15rem]">ID: {order.id}</span>
               <button 
                 onClick={copyOrderId} 
                 className="ml-1 text-gray-400 hover:text-gray-600"
+                aria-label="Copy order ID"
               >
                 {isCopied ? (
                   <span className="text-green-500 text-xs">Copied!</span>
@@ -93,14 +94,14 @@ export function OrderCard({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center w-full sm:w-auto">
           {enableStatusUpdate ? (
             <StatusSelect 
               currentStatusId={currentStatus.id}
               currentStatusName={currentStatus.name}
               orderId={order.id}
               onStatusChange={handleStatusChange}
-              className="w-40"
+              className="w-full sm:w-40"
             />
           ) : (
             <span 
@@ -113,7 +114,7 @@ export function OrderCard({
       </div>
 
       {/* Summary Row */}
-      <div className="p-4 grid grid-cols-3 gap-4 bg-gray-50 border-b">
+      <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 border-b">
         <div className="flex flex-col">
           <span className="text-xs text-gray-500 flex items-center">
             <Clock className="h-3 w-3 mr-1" /> Date
@@ -142,7 +143,7 @@ export function OrderCard({
 
       {/* Order Details Section - Always visible */}
       <div className="p-4 border-b">
-        <div className="grid md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">Customer Information</h4>
             <div className="bg-gray-50 p-3 rounded">
@@ -207,23 +208,23 @@ export function OrderCard({
               {order.lineItemGroups.map((group, groupIndex) => (
                 <div key={group.id || groupIndex} className="bg-white">
                   <div className="bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 flex justify-between items-center">
-                    <span>{group.name || `Group ${groupIndex + 1}`}</span>
+                    <span className="truncate">{group.name || `Group ${groupIndex + 1}`}</span>
                     {group.quantity && (
-                      <span className="text-xs font-normal bg-gray-200 px-2 py-1 rounded">
+                      <span className="text-xs font-normal bg-gray-200 px-2 py-1 rounded ml-2 flex-shrink-0">
                         Qty: {group.quantity}
                       </span>
                     )}
                   </div>
                   <div className="divide-y">
                     {group.lineItems?.map((item, itemIndex) => (
-                      <div key={item.id || itemIndex} className="px-3 py-3 flex flex-col md:flex-row md:justify-between">
-                        <div className="flex-1 mb-2 md:mb-0">
+                      <div key={item.id || itemIndex} className="px-3 py-3 flex flex-col sm:flex-row sm:justify-between">
+                        <div className="flex-1 mb-2 sm:mb-0">
                           <p className="text-sm font-medium">{item.name}</p>
                           {item.description && typeof item.description === 'string' && (
                             <p className="text-xs text-gray-500 mt-1">{item.description}</p>
                           )}
-                          <div className="flex items-center mt-1">
-                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded mr-2">
+                          <div className="flex flex-wrap items-center mt-1 gap-2">
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
                               Qty: {item.quantity}
                             </span>
                             <span className="text-xs text-gray-500">
@@ -231,7 +232,7 @@ export function OrderCard({
                             </span>
                           </div>
                         </div>
-                        <div className="text-sm font-medium text-right">
+                        <div className="text-sm font-medium text-right mt-2 sm:mt-0 flex-shrink-0">
                           {formatCurrency((item.quantity || 0) * (item.price || 0))}
                         </div>
                       </div>
@@ -277,12 +278,12 @@ export function OrderCard({
       )}
 
       {/* Footer */}
-      <div className="p-3 flex justify-between items-center border-t bg-gray-50">
+      <div className="p-3 flex flex-col sm:flex-row justify-between items-center border-t bg-gray-50 gap-3">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-xs text-gray-600 flex items-center gap-1"
+          className="text-xs text-gray-600 flex items-center gap-1 w-full sm:w-auto justify-center sm:justify-start"
         >
           {isExpanded ? (
             <>
@@ -296,13 +297,14 @@ export function OrderCard({
             </>
           )}
         </Button>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-start">
           {onViewCustomer && order.customer && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => onViewCustomer(order.customer.id)}
               className="text-xs"
+              aria-label={`View customer ${order.customer.name || 'details'}`}
             >
               Customer
             </Button>
@@ -313,6 +315,7 @@ export function OrderCard({
               size="sm"
               onClick={() => onViewDetails(order.id)}
               className="text-xs"
+              aria-label={`View details for order ${order.visualId}`}
             >
               View Details
             </Button>
@@ -321,4 +324,4 @@ export function OrderCard({
       </div>
     </div>
   );
-} 
+}

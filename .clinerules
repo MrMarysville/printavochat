@@ -30,12 +30,55 @@
 - All API routes use try/catch blocks with specific error handling
 - Errors are logged using `logger.error()` before returning to client
 - Error responses include `success: false` and appropriate HTTP status codes
+- The `executeGraphQL` function includes robust retry logic:
+  - Uses exponential backoff starting with 1 second delay
+  - Respects Retry-After headers from 429 responses
+  - Properly categorizes errors to determine if retry is appropriate
+  - Limits maximum retry attempts to prevent endless loops
+  - Provides detailed logging for debugging API issues
 
 ### Context Tracking
 - Conversation context is tracked in `ConversationContext` interface
 - Context includes: lastOrderId, lastOrderType, lastCustomerId, lastSearchTerm, lastIntent
 - Context is built from previous messages and updated after responses
 - When follow-up questions are detected, the context is used to determine the intent
+
+### SmartPoller Pattern
+- The SmartPoller class is used for efficient data polling with change detection
+- Important implementation details:
+  - Always clean up timers with clearTimeout when stopping polling
+  - Use a failedAttempts counter to limit retries on errors
+  - Always check isPolling state before scheduling new polls
+  - Properly handle component unmounting by calling stop()
+  - Use proper error handling in the polling callback
+  - Never allow infinite polling loops in error conditions
+
+### Testing Patterns
+- Jest is configured for both unit and component testing
+- Key Jest configuration:
+  - Use 'jsdom' environment for component tests
+  - Set up proper mocks for fetch, router, and environment variables
+  - Use identity-obj-proxy for handling CSS imports
+  - Clean up timers after each test with jest.useRealTimers()
+  - Mock external browser APIs like SpeechRecognition for component tests
+- Common testing patterns:
+  - Use jest.mock() for external dependencies
+  - Create specific test data for predictable results
+  - Use test doubles (mocks, stubs) for external API calls
+  - Clean up resources after tests to prevent memory leaks
+
+## Running Tests
+- Use `npm test` to run all tests
+- For specific tests, use `npx jest path/to/test.ts`
+- Visual ID search tests use mock data instead of real API calls
+- API service tests mock the Printavo API responses
+- To enable component tests, install required dependency:
+  ```
+  npm install --save-dev @testing-library/dom
+  ```
+- SmartPoller tests use `pollNow()` instead of timers to avoid infinite loops
+- API rate limiting is handled in tests using mock responses
+- Ignore `punycode` deprecation warnings during tests - this is from a Node.js internal module used by dependencies and doesn't affect functionality. The warning will be resolved when the dependencies are updated.
 
 ## Important Type Definitions
 - `PrintavoAPIResponse<T>`: Generic response type with data, errors, success flag
@@ -50,3 +93,26 @@
   3. By searching with text query (e.g., "find recent orders")
 - User queries are parsed in `determineOperation` function in operations.ts
 - Natural language patterns are matched using regular expressions
+
+## Quote Creation Patterns
+- Quote creation follows a multi-step workflow in `chat-commands.ts`:
+  1. Customer identification: Finding or creating a customer with email
+  2. Line item addition: Adding products with quantity and price
+  3. Payment terms: Setting payment terms and production date
+  4. Notes: Adding optional notes to the quote
+  5. Finalization: Creating the quote in Printavo
+- Quote editing is supported during creation:
+  1. "edit item N: [new item details]" - Update an existing line item
+  2. "remove item N" - Delete a line item from the quote
+  3. "preview quote" - View the current state of the quote before finalizing
+- Orders are validated at each step with appropriate error messages
+
+## Orders Page Patterns
+- The orders page (`app/orders/page.tsx`) follows a paginated data fetching pattern.
+- Pagination is implemented using cursor-based GraphQL pagination, with next/previous functionality.
+- The page supports filtering:
+  1. By free text search (customer name, order number, visual ID)
+  2. By order status (using status filter dropdown)
+- Status updates are handled directly in the `StatusSelect` component with real-time UI updates.
+- Mobile responsiveness is implemented using Tailwind's responsive classes (sm:, md:, etc.)
+- Search relies on Printavo API's native search capabilities via query parameter.

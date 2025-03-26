@@ -39,11 +39,15 @@ export interface FormField {
   };
 }
 
-export interface DynamicFormProps {
+export interface FormConfig {
   fields: FormField[];
   title?: string;
   description?: string;
   submitButtonText?: string;
+}
+
+export interface DynamicFormProps {
+  formConfig: FormConfig;
   onSubmit: (_values: Record<string, any>) => void;
   onCancel?: () => void;
   initialValues?: Record<string, any>;
@@ -52,16 +56,14 @@ export interface DynamicFormProps {
 }
 
 export function DynamicForm({
-  fields,
-  title = 'Form',
-  description,
-  submitButtonText = 'Submit',
+  formConfig,
   onSubmit,
   onCancel,
   initialValues = {},
   isLoading = false,
   collapsible = false
 }: DynamicFormProps) {
+  const { fields, title = 'Form', description, submitButtonText = 'Submit' } = formConfig;
   const [values, setValues] = useState<Record<string, any>>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -160,10 +162,13 @@ export function DynamicForm({
               placeholder={placeholder}
               className={hasError ? 'border-red-500' : ''}
               disabled={isLoading}
+              aria-invalid={hasError}
+              aria-describedby={hasError ? `${id}-error` : undefined}
+              required={required}
             />
             {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
+              <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
               </p>
             )}
           </div>
@@ -186,10 +191,13 @@ export function DynamicForm({
               className={`w-full px-3 py-2 border rounded-md ${hasError ? 'border-red-500' : 'border-gray-300'} focus:outline-none focus:ring-1 focus:ring-primary`}
               rows={4}
               disabled={isLoading}
+              aria-invalid={hasError}
+              aria-describedby={hasError ? `${id}-error` : undefined}
+              required={required}
             />
             {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
+              <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
               </p>
             )}
           </div>
@@ -207,7 +215,7 @@ export function DynamicForm({
             )}
             <div className={`relative ${type === 'price' ? 'flex items-center' : ''}`}>
               {type === 'price' && (
-                <span className="absolute left-3 text-gray-500">$</span>
+                <span className="absolute left-3 text-gray-500" aria-hidden="true">$</span>
               )}
               <Input
                 id={id}
@@ -220,11 +228,14 @@ export function DynamicForm({
                 step={step || 1}
                 className={`${hasError ? 'border-red-500' : ''} ${type === 'price' ? 'pl-7' : ''}`}
                 disabled={isLoading}
+                aria-invalid={hasError}
+                aria-describedby={hasError ? `${id}-error` : undefined}
+                required={required}
               />
             </div>
             {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
+              <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
               </p>
             )}
           </div>
@@ -245,6 +256,9 @@ export function DynamicForm({
               onChange={e => handleChange(id, e.target.value)}
               className={`w-full px-3 py-2 border rounded-md ${hasError ? 'border-red-500' : 'border-gray-300'} focus:outline-none focus:ring-1 focus:ring-primary`}
               disabled={isLoading}
+              aria-invalid={hasError}
+              aria-describedby={hasError ? `${id}-error` : undefined}
+              required={required}
             >
               <option value="">Select {label}</option>
               {options?.map(option => (
@@ -254,8 +268,8 @@ export function DynamicForm({
               ))}
             </select>
             {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
+              <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
               </p>
             )}
           </div>
@@ -277,10 +291,13 @@ export function DynamicForm({
               onChange={e => handleChange(id, e.target.value)}
               className={hasError ? 'border-red-500' : ''}
               disabled={isLoading}
+              aria-invalid={hasError}
+              aria-describedby={hasError ? `${id}-error` : undefined}
+              required={required}
             />
             {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
+              <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
               </p>
             )}
           </div>
@@ -296,14 +313,19 @@ export function DynamicForm({
               onChange={e => handleChange(id, e.target.checked)}
               className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
               disabled={isLoading}
+              aria-describedby={description ? `${id}-description` : undefined}
             />
             <label htmlFor={id} className="ml-2 block text-sm text-gray-700">
               {label} {required && <span className="text-red-500">*</span>}
             </label>
             {description && (
               <div className="ml-2 relative -top-0.5">
-                <span title={description}>
-                  <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                <span 
+                  id={`${id}-description`}
+                  title={description}
+                >
+                  <Info className="h-4 w-4 text-gray-400 cursor-help" aria-hidden="true" />
+                  <span className="sr-only">{description}</span>
                 </span>
               </div>
             )}
@@ -313,44 +335,50 @@ export function DynamicForm({
       case 'multiselect':
         return (
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {label} {required && <span className="text-red-500">*</span>}
-            </label>
-            {description && (
-              <p className="text-xs text-gray-500 mb-1">{description}</p>
-            )}
-            <div className={`border rounded-md ${hasError ? 'border-red-500' : 'border-gray-300'}`}>
-              {options?.map(option => (
-                <div key={option.value} className="flex items-center px-3 py-2 border-b last:border-b-0">
-                  <input
-                    id={`${id}.${option.value}`}
-                    type="checkbox"
-                    value={option.value}
-                    checked={Array.isArray(value) && value.includes(option.value)}
-                    onChange={e => {
-                      const newValue = Array.isArray(value) ? [...value] : [];
-                      if (e.target.checked) {
-                        newValue.push(option.value);
-                      } else {
-                        const index = newValue.indexOf(option.value);
-                        if (index !== -1) newValue.splice(index, 1);
-                      }
-                      handleChange(id, newValue);
-                    }}
-                    className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-                    disabled={isLoading}
-                  />
-                  <label htmlFor={`${id}.${option.value}`} className="ml-2 block text-sm text-gray-700">
-                    {option.label}
-                  </label>
-                </div>
-              ))}
-            </div>
-            {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
-              </p>
-            )}
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 mb-1">
+                {label} {required && <span className="text-red-500">*</span>}
+              </legend>
+              {description && (
+                <p className="text-xs text-gray-500 mb-1">{description}</p>
+              )}
+              <div 
+                className={`border rounded-md ${hasError ? 'border-red-500' : 'border-gray-300'}`}
+                aria-invalid={hasError}
+                aria-describedby={hasError ? `${id}-error` : undefined}
+              >
+                {options?.map(option => (
+                  <div key={option.value} className="flex items-center px-3 py-2 border-b last:border-b-0">
+                    <input
+                      id={`${id}.${option.value}`}
+                      type="checkbox"
+                      value={option.value}
+                      checked={Array.isArray(value) && value.includes(option.value)}
+                      onChange={e => {
+                        const newValue = Array.isArray(value) ? [...value] : [];
+                        if (e.target.checked) {
+                          newValue.push(option.value);
+                        } else {
+                          const index = newValue.indexOf(option.value);
+                          if (index !== -1) newValue.splice(index, 1);
+                        }
+                        handleChange(id, newValue);
+                      }}
+                      className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+                      disabled={isLoading}
+                    />
+                    <label htmlFor={`${id}.${option.value}`} className="ml-2 block text-sm text-gray-700">
+                      {option.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              {hasError && (
+                <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                  <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
+                </p>
+              )}
+            </fieldset>
           </div>
         );
         
@@ -371,6 +399,9 @@ export function DynamicForm({
                 onChange={e => handleChange(id, e.target.value)}
                 className={`h-10 w-10 border-0 p-0 ${hasError ? 'ring-1 ring-red-500' : ''}`}
                 disabled={isLoading}
+                aria-invalid={hasError}
+                aria-describedby={hasError ? `${id}-error` : undefined}
+                required={required}
               />
               <Input
                 type="text"
@@ -379,11 +410,12 @@ export function DynamicForm({
                 placeholder="#000000"
                 className="ml-2 w-32"
                 disabled={isLoading}
+                aria-label={`${label} in hex format`}
               />
             </div>
             {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
+              <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
               </p>
             )}
           </div>
@@ -415,10 +447,13 @@ export function DynamicForm({
                 file:bg-primary file:text-white
                 hover:file:bg-primary/90"
               disabled={isLoading}
+              aria-invalid={hasError}
+              aria-describedby={hasError ? `${id}-error` : undefined}
+              required={required}
             />
             {hasError && (
-              <p className="mt-1 text-xs text-red-500 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" /> {errors[id]}
+              <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" aria-hidden="true" /> {errors[id]}
               </p>
             )}
           </div>
@@ -432,9 +467,21 @@ export function DynamicForm({
   if (collapsible && isCollapsed) {
     return (
       <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-        <div className="p-4 flex justify-between items-center cursor-pointer" onClick={() => setIsCollapsed(false)}>
+        <div 
+          className="p-4 flex justify-between items-center cursor-pointer"
+          onClick={() => setIsCollapsed(false)}
+          role="button"
+          aria-expanded="false"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setIsCollapsed(false);
+            }
+          }}
+        >
           <h3 className="font-medium">{title}</h3>
-          <ChevronDown className="h-5 w-5 text-gray-400" />
+          <ChevronDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
         </div>
       </div>
     );
@@ -442,25 +489,49 @@ export function DynamicForm({
 
   return (
     <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-      <div className={`p-4 flex justify-between items-center border-b ${collapsible ? 'cursor-pointer' : ''}`}
-        onClick={collapsible ? () => setIsCollapsed(true) : undefined}>
+      <div 
+        className={`p-4 flex justify-between items-center border-b ${collapsible ? 'cursor-pointer' : ''}`}
+        onClick={collapsible ? () => setIsCollapsed(true) : undefined}
+        role={collapsible ? "button" : undefined}
+        aria-expanded={collapsible ? true : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        onKeyDown={collapsible ? (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsCollapsed(true);
+          }
+        } : undefined}
+      >
         <div>
           <h3 className="font-medium">{title}</h3>
           {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
         </div>
-        {collapsible && <ChevronUp className="h-5 w-5 text-gray-400" />}
+        {collapsible && <ChevronUp className="h-5 w-5 text-gray-400" aria-hidden="true" />}
       </div>
       
       <form onSubmit={handleSubmit} className="p-4">
-        {fields.map(field => renderField(field))}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0">
+          {fields.map(field => (
+            <div key={field.id} className={`${
+              // Full width fields
+              field.type === 'textarea' || 
+              field.type === 'multiselect' || 
+              field.type === 'file' ? 
+              'col-span-1 md:col-span-2' : ''
+            }`}>
+              {renderField(field)}
+            </div>
+          ))}
+        </div>
         
-        <div className="flex justify-end mt-4 gap-2">
+        <div className="flex flex-col sm:flex-row sm:justify-end mt-6 gap-2">
           {onCancel && (
             <Button
               type="button"
               variant="outline"
               onClick={onCancel}
               disabled={isLoading}
+              className="w-full sm:w-auto order-2 sm:order-1"
             >
               Cancel
             </Button>
@@ -468,13 +539,23 @@ export function DynamicForm({
           <Button
             type="submit"
             disabled={isLoading}
-            className="flex items-center gap-1"
+            className="flex items-center justify-center gap-1 w-full sm:w-auto order-1 sm:order-2"
+            aria-busy={isLoading}
           >
-            {isLoading ? 'Processing...' : submitButtonText}
-            {!isLoading && <Send className="h-4 w-4 ml-1" />}
+            {isLoading ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-1" aria-hidden="true" />
+                Processing...
+              </>
+            ) : (
+              <>
+                {submitButtonText}
+                <Send className="h-4 w-4 ml-1" aria-hidden="true" />
+              </>
+            )}
           </Button>
         </div>
       </form>
     </div>
   );
-} 
+}

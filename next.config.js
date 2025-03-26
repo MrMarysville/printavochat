@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    // No experimental features needed at this time
+    // Next.js 15 no longer supports isrMemoryCacheSize
   },
   // Add proper image domains for Next.js Image optimization
   images: {

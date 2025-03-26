@@ -25,6 +25,7 @@ export interface QuoteCreateInput {
   productionNotes?: string;
   shippingNotes?: string;
   customerNotes?: string;
+  notes?: string;
   tags?: string[];
   lineItems?: LineItemCreateInput[];
   lineItemGroups?: LineItemGroupWithItemsInput[];

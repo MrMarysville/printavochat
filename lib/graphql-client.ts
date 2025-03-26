@@ -39,6 +39,18 @@ export const checkConnection = async (forceCheck = false) => {
   try {
     logger.info('Checking API connection status...');
     const response = await fetch('/api/health');
+    
+    if (!response.ok) {
+      logger.error(`API health check failed: ${response.status} ${response.statusText}`);
+      apiConnectionStatus = {
+        connected: false,
+        checked: true,
+        account: null,
+        lastCheck: now
+      };
+      return apiConnectionStatus;
+    }
+    
     const result = await response.json();
     
     // Update the connection status
@@ -76,6 +88,7 @@ export class GraphQLClientError extends Error {
     public context?: {
       query?: string;
       variables?: any;
+      operationName?: string;
       timestamp?: string;
       requestId?: string;
     }
@@ -141,8 +154,19 @@ const getRetryDelay = (attempt: number): number => {
 };
 
 // Helper function for GraphQL execution with improved error handling and retry logic
-export const executeGraphQLOld = async <T = any>(query: string, variables: any = {}): Promise<T> => {
+export const executeGraphQLOld = async <T = any>(query: string, variables: any = {}, operationName: string = ''): Promise<T> => {
   let lastError: Error | null = null;
+  
+  // Ensure operation name is valid
+  if (!operationName) {
+    const error = new GraphQLValidationError(
+      'GraphQL operation name is required',
+      { operationName },
+      { query: query.substring(0, 100) }
+    );
+    logger.error('Missing operation name for GraphQL query', error);
+    throw error;
+  }
   
   for (let attempt = 1; attempt <= RETRY_CONFIG.maxAttempts; attempt++) {
     try {
@@ -150,6 +174,7 @@ export const executeGraphQLOld = async <T = any>(query: string, variables: any =
       logger.debug(`Executing GraphQL query (attempt ${attempt}/${RETRY_CONFIG.maxAttempts}):`, {
         query: query.substring(0, 50) + '...',
         variables: JSON.stringify(variables).substring(0, 100) + '...',
+        operationName,
         timestamp: new Date().toISOString(),
         attempt
       });
@@ -165,67 +190,30 @@ export const executeGraphQLOld = async <T = any>(query: string, variables: any =
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query, variables }),
+        body: JSON.stringify({ query, variables, operationName }),
       });
 
-      const result = await response.json();
-
-      // Handle non-200 responses with specific error types
       if (!response.ok) {
-        const errorContext = {
-          query,
-          variables,
-          timestamp: new Date().toISOString(),
-          requestId: response.headers.get('x-request-id') || undefined
-        };
-
-        switch (response.status) {
-          case 400:
-            throw new GraphQLValidationError(
-              result.error || 'Invalid GraphQL request',
-              result.details,
-              errorContext
-            );
-          case 401:
-            throw new GraphQLAuthenticationError(
-              'Authentication failed',
-              result.details,
-              errorContext
-            );
-          case 403:
-            throw new GraphQLAuthorizationError(
-              'Not authorized to perform this operation',
-              result.details,
-              errorContext
-            );
-          case 429:
-            throw new GraphQLRateLimitError(
-              'Rate limit exceeded',
-              result.details,
-              errorContext
-            );
-          case 503:
-            throw new GraphQLConnectionError(
-              'Service temporarily unavailable',
-              result.details,
-              errorContext
-            );
-          default:
-            throw new GraphQLClientError(
-              result.error || 'Failed to execute GraphQL query',
-              response.status,
-              result.details,
-              'UNKNOWN_ERROR',
-              errorContext
-            );
-        }
+        const errorText = await response.text().catch(() => 'Failed to parse error response');
+        logger.error(`GraphQL request failed with status ${response.status}:`, errorText);
+        
+        throw new GraphQLClientError(
+          `GraphQL request failed with status ${response.status}`,
+          response.status,
+          { response: errorText },
+          'HTTP_ERROR',
+          { query, variables, operationName }
+        );
       }
+
+      const result = await response.json();
 
       // Check for GraphQL errors in the response
       if (result.errors) {
         const errorContext = {
           query,
           variables,
+          operationName,
           timestamp: new Date().toISOString(),
           requestId: response.headers.get('x-request-id') || undefined
         };
@@ -289,8 +277,9 @@ export const executeGraphQLOld = async <T = any>(query: string, variables: any =
 };
 
 export const fetchTasks = async () => {
+  const operationName = "GetTasks"; // Always define operation name explicitly
   const query = `
-    query {
+    query ${operationName} {
       tasks(first: 5) {
         edges {
           node {
@@ -303,19 +292,56 @@ export const fetchTasks = async () => {
     }
   `;
   try {
-    const data = await executeGraphQLOld<{ tasks: { edges: Array<{ node: { id: string; name: string; dueAt: string } }> } }>(query);
-    return data.tasks.edges.map((edge: { node: any }) => edge.node);
+    const data = await executeGraphQL(query, {}, operationName);
+    return data.tasks?.edges?.map((edge: { node: any }) => edge.node) || [];
   } catch (error) {
     logger.error('Error fetching tasks:', error);
-    // Let the error propagate instead of returning mock data
-    throw error;
+    // Return empty array on error to prevent UI from breaking
+    return [];
   }
 };
 
+// Helper function to execute GraphQL request with better browser diagnostics
+async function executeClientGraphQL(
+  query: string, 
+  variables: Record<string, any> = {}, 
+  operationName: string
+): Promise<any> {
+  try {
+    if (!operationName || operationName.trim() === '') {
+      console.error('[GraphQL] Operation name is required', {
+        error: 'No operation name provided',
+        query: query.substring(0, 100)
+      });
+      throw new Error('GraphQL operation name is required and cannot be empty');
+    }
+    
+    // Log the request attempt in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[GraphQL] Executing ${operationName}...`);
+    }
+    
+    // Ensure we're sending the operation name properly
+    const result = await executeGraphQL(query, variables, operationName);
+    return result;
+  } catch (error: unknown) {
+    // Enhanced client-side error reporting
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[GraphQL] Error in ${operationName}:`, errorMessage);
+    
+    // Re-throw to be handled by the calling function
+    throw error;
+  }
+}
+
+// Replace direct executeGraphQL calls with our enhanced client version in dashboard-used functions
 export const fetchRecentOrders = async () => {
+  logger.info('Fetching recent orders from Printavo API');
+  const operationName = "GetRecentOrders";
+  
   const query = `
-    query {
-      invoices(first: 20, sortDescending: true, sortOn: CREATED_AT) {
+    query ${operationName} {
+      invoices(first: 50, sortDescending: true) {
         edges {
           node {
             id
@@ -337,26 +363,54 @@ export const fetchRecentOrders = async () => {
       }
     }
   `;
+  
   try {
-    const data = await executeGraphQL(query);
+    const data = await executeClientGraphQL(query, {}, operationName);
+    
+    // Handle empty or invalid response
+    if (!data || !data.invoices || !data.invoices.edges) {
+      logger.warn('Empty or invalid response from Printavo API for recent orders');
+      return [];
+    }
+    
+    logger.info(`Received ${data.invoices.edges.length} orders from Printavo API`);
+    
     // Transform the data to the format expected by RecentOrdersSummary
     const orders = data.invoices.edges.map((edge: { node: any }) => ({
       id: edge.node.id,
-      name: edge.node.nickname || `Order #${edge.node.visualId}`,
+      name: edge.node.nickname || `Order #${edge.node.visualId || 'Unknown'}`,
       customer: {
         id: edge.node.contact?.id || 'unknown',
         name: edge.node.contact?.fullName || 'Unknown Customer'
       },
-      date: edge.node.createdAt,
+      date: edge.node.createdAt || new Date().toISOString(),
       status: edge.node.status?.name || 'Unknown Status',
       total: parseFloat(edge.node.total || '0')
     }));
     
-    // Already sorted by the API, but add an extra sort to ensure newest first
-    return orders.sort((a: { date: string }, b: { date: string }) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Make sure we have valid dates and sort newest first
+    const sortedOrders = orders
+      .filter((order: { date: string }) => order.date) // Remove any orders with missing dates
+      .sort((a: { date: string }, b: { date: string }) => {
+        try {
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        } catch (e) {
+          // If date parsing fails, keep original order
+          return 0;
+        }
+      });
+    
+    // Log some info about the results
+    logger.info(`Processed ${sortedOrders.length} orders for display (after filtering and sorting)`);
+    if (sortedOrders.length > 0) {
+      logger.debug(`First order: ${sortedOrders[0].name}, date: ${sortedOrders[0].date}`);
+    }
+    
+    return sortedOrders;
   } catch (error) {
     logger.error('Error fetching recent orders:', error);
-    throw error;
+    // Return empty array instead of throwing to prevent dashboard from breaking
+    return [];
   }
 };
 
@@ -390,16 +444,17 @@ interface ChartData {
   datasets: {
     label: string;
     data: number[];
-    color: string;
+    color?: string;
   }[];
 }
 
 export const fetchOrdersChartData = async (): Promise<ChartData> => {
-  // Implement the query to fetch actual orders chart data
-  // This should query the Printavo API for real data
+  logger.info('Fetching orders chart data');
+  const operationName = "GetOrdersChartData";
+  
   const query = `
-    query {
-      invoices(first: 30) {
+    query ${operationName} {
+      invoices(first: 100, sortDescending: true) {
         edges {
           node {
             id
@@ -412,32 +467,79 @@ export const fetchOrdersChartData = async (): Promise<ChartData> => {
   `;
   
   try {
-    const response = await executeGraphQL(query);
+    const response = await executeClientGraphQL(query, {}, operationName);
+    
+    // Check if we received valid data
+    if (!response || !response.invoices || !response.invoices.edges) {
+      logger.warn('No order data available for chart');
+      return {
+        labels: ['No Data'],
+        datasets: [
+          {
+            label: 'Orders',
+            data: [0],
+            color: 'blue'
+          }
+        ]
+      };
+    }
     
     // Process the raw data into chart format
     const orders = response.invoices.edges.map((edge: OrderEdge) => edge.node);
+    logger.info(`Processing ${orders.length} orders for chart data`);
+    
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
-    // Group orders by month
+    // Get data for the last 6 months
+    const now = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    // Create a map of all months we want to display (even if no data)
     const ordersByMonth: MonthlyOrderData = {};
-    orders.forEach((order: OrderData) => {
-      const date = new Date(order.createdAt);
+    for (let i = 0; i < 6; i++) {
+      const date = new Date(now);
+      date.setMonth(date.getMonth() - i);
       const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      if (!ordersByMonth[monthKey]) {
-        ordersByMonth[monthKey] = { 
-          count: 0, 
-          label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`
-        };
+      ordersByMonth[monthKey] = { 
+        count: 0, 
+        label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`
+      };
+    }
+    
+    // Fill in the actual data
+    orders.forEach((order: OrderData) => {
+      try {
+        const date = new Date(order.createdAt);
+        // Only include orders from the last 6 months
+        if (date >= sixMonthsAgo) {
+          const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+          if (ordersByMonth[monthKey]) {
+            ordersByMonth[monthKey].count++;
+          }
+        }
+      } catch (e) {
+        logger.warn(`Error processing order date: ${e}`);
       }
-      ordersByMonth[monthKey].count++;
     });
     
+    // Sort by date (oldest to newest)
+    const sortedMonths = Object.keys(ordersByMonth)
+      .sort((a, b) => {
+        const [yearA, monthA] = a.split('-').map(Number);
+        const [yearB, monthB] = b.split('-').map(Number);
+        return (yearA - yearB) || (monthA - monthB);
+      });
+    
     // Convert to chart format
-    const labels = Object.values(ordersByMonth).map(m => m.label);
-    const chartData = Object.values(ordersByMonth).map(m => m.count);
+    const labels = sortedMonths.map(key => ordersByMonth[key].label);
+    const chartData = sortedMonths.map(key => ordersByMonth[key].count);
+    
+    logger.debug(`Chart labels: ${labels.join(', ')}`);
+    logger.debug(`Chart data: ${chartData.join(', ')}`);
     
     return {
-      labels: labels,
+      labels,
       datasets: [
         {
           label: 'Orders',
@@ -448,15 +550,26 @@ export const fetchOrdersChartData = async (): Promise<ChartData> => {
     };
   } catch (error) {
     logger.error('Error fetching orders chart data:', error);
-    throw error;
+    return {
+      labels: ['Error'],
+      datasets: [
+        {
+          label: 'Error',
+          data: [0],
+          color: 'red'
+        }
+      ]
+    };
   }
 };
 
 export const fetchRevenueChartData = async (): Promise<ChartData> => {
-  // Query real revenue data
+  logger.info('Fetching revenue chart data');
+  const operationName = "GetRevenueChartData";
+  
   const query = `
-    query {
-      invoices(first: 30) {
+    query ${operationName} {
+      invoices(first: 100, sortDescending: true) {
         edges {
           node {
             id
@@ -469,35 +582,82 @@ export const fetchRevenueChartData = async (): Promise<ChartData> => {
   `;
   
   try {
-    const response = await executeGraphQL(query);
+    const response = await executeClientGraphQL(query, {}, operationName);
+    
+    // Check if we received valid data
+    if (!response || !response.invoices || !response.invoices.edges) {
+      logger.warn('No revenue data available for chart');
+      return {
+        labels: ['No Data'],
+        datasets: [
+          {
+            label: 'Revenue',
+            data: [0],
+            color: 'green'
+          }
+        ]
+      };
+    }
     
     // Process the raw data into chart format
     const orders = response.invoices.edges.map((edge: OrderEdge) => edge.node);
+    logger.info(`Processing ${orders.length} orders for revenue chart data`);
+    
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
-    // Group revenue by month
+    // Get data for the last 6 months
+    const now = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    // Create a map of all months we want to display (even if no data)
     const revenueByMonth: MonthlyRevenueData = {};
-    orders.forEach((order: OrderData) => {
-      const date = new Date(order.createdAt);
+    for (let i = 0; i < 6; i++) {
+      const date = new Date(now);
+      date.setMonth(date.getMonth() - i);
       const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      if (!revenueByMonth[monthKey]) {
-        revenueByMonth[monthKey] = { 
-          total: 0, 
-          label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`
-        };
+      revenueByMonth[monthKey] = { 
+        total: 0, 
+        label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`
+      };
+    }
+    
+    // Fill in the actual data
+    orders.forEach((order: OrderData) => {
+      try {
+        const date = new Date(order.createdAt);
+        // Only include orders from the last 6 months
+        if (date >= sixMonthsAgo) {
+          const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+          if (revenueByMonth[monthKey]) {
+            revenueByMonth[monthKey].total += parseFloat(order.total.toString()) || 0;
+          }
+        }
+      } catch (e) {
+        logger.warn(`Error processing order revenue: ${e}`);
       }
-      revenueByMonth[monthKey].total += parseFloat(order.total.toString());
     });
     
+    // Sort by date (oldest to newest)
+    const sortedMonths = Object.keys(revenueByMonth)
+      .sort((a, b) => {
+        const [yearA, monthA] = a.split('-').map(Number);
+        const [yearB, monthB] = b.split('-').map(Number);
+        return (yearA - yearB) || (monthA - monthB);
+      });
+    
     // Convert to chart format
-    const labels = Object.values(revenueByMonth).map(m => m.label);
-    const chartData = Object.values(revenueByMonth).map(m => m.total);
+    const labels = sortedMonths.map(key => revenueByMonth[key].label);
+    const chartData = sortedMonths.map(key => revenueByMonth[key].total);
+    
+    logger.debug(`Revenue chart labels: ${labels.join(', ')}`);
+    logger.debug(`Revenue chart data: ${chartData.join(', ')}`);
     
     return {
-      labels: labels,
+      labels,
       datasets: [
         {
-          label: 'Revenue',
+          label: 'Revenue ($)',
           data: chartData,
           color: 'green'
         }
@@ -505,7 +665,16 @@ export const fetchRevenueChartData = async (): Promise<ChartData> => {
     };
   } catch (error) {
     logger.error('Error fetching revenue chart data:', error);
-    throw error;
+    return {
+      labels: ['Error'],
+      datasets: [
+        {
+          label: 'Error',
+          data: [0],
+          color: 'red'
+        }
+      ]
+    };
   }
 };
 

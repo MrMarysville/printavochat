@@ -19,7 +19,7 @@ console.log('Using Printavo API URL:', API_URL);
 console.log('API token is set (first 5 chars):', API_TOKEN.substring(0, 5) + '...');
 
 // Helper function to make GraphQL requests
-async function executeGraphQL(query, variables) {
+async function executeGraphQL(query, variables, operationName) {
   try {
     const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
@@ -87,7 +87,7 @@ async function searchOrderByNumber() {
     }
   `;
   
-  const data = await executeGraphQL(query, { query: '9435' });
+  const data = await executeGraphQL(query, { query: '9435' }, "SearchOrderByNumber");
   console.log('Search by number results:', JSON.stringify(data, null, 2));
   
   return data;
@@ -124,7 +124,7 @@ async function searchAllRecentOrders() {
     }
   `;
   
-  const data = await executeGraphQL(query, {});
+  const data = await executeGraphQL(query, {}, "GetRecentOrders");
   
   // Look for order with visualId = 9435
   const orders = data?.orders?.edges || [];
@@ -179,7 +179,7 @@ async function getOrderDirectly() {
       }
     `;
     
-    const data = await executeGraphQL(query, { id });
+    const data = await executeGraphQL(query, { id }, "GetOrder");
     
     if (data?.order) {
       console.log(`Found order with ID ${id}:`, JSON.stringify(data.order, null, 2));
@@ -230,7 +230,7 @@ async function searchWithPartialMatches() {
       }
     `;
     
-    const data = await executeGraphQL(query, { query: term });
+    const data = await executeGraphQL(query, { query: term }, "SearchOrders");
     
     const orders = data?.invoices?.edges || [];
     if (orders.length > 0) {

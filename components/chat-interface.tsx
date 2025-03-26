@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, X, Minimize2 } from 'lucide-react';
+import { Send, Paperclip, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,6 +13,7 @@ import { OrderCard } from './rich-messages/OrderCard';
 import { ProductGallery } from './rich-messages/ProductGallery';
 import { DynamicForm } from './rich-messages/DynamicForm';
 import { VoiceControl } from './VoiceControl';
+import ErrorBoundary from './error-boundary';
 
 type MessageType = 'text' | 'file' | 'order' | 'product' | 'form' | 'dashboard';
 
@@ -39,6 +40,75 @@ interface ChatMessageType {
   messageType: MessageType;
 }
 
+// Component for displaying file attachments
+const FileAttachment = ({ file }: { file: ChatFile }) => {
+  return (
+    <a 
+      href={file.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center p-2 rounded bg-gray-100 text-xs hover:bg-gray-200 transition"
+    >
+      {file.type.startsWith('image/') ? (
+        <Image 
+          src={file.url} 
+          alt={file.name} 
+          width={32}
+          height={32}
+          className="h-8 w-8 object-cover rounded mr-2" 
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.onerror = null;
+            target.src = '/placeholder-image.png';
+          }}
+        />
+      ) : (
+        <div className="h-8 w-8 bg-gray-200 rounded flex items-center justify-center mr-2">
+          <span className="text-xs">{file.name.split('.').pop()}</span>
+        </div>
+      )}
+      <span className="truncate max-w-[120px]">{file.name}</span>
+    </a>
+  );
+};
+
+// Rich message components wrapped in error boundaries
+const RichOrderMessage = ({ order, onViewDetails }: { order: any, onViewDetails: () => void }) => {
+  return (
+    <ErrorBoundary fallback={
+      <div className="p-3 bg-red-50 text-red-800 rounded-md text-sm">
+        Error displaying order information
+      </div>
+    }>
+      <OrderCard order={order} onViewDetails={onViewDetails} />
+    </ErrorBoundary>
+  );
+};
+
+const RichProductMessage = ({ products }: { products: any[] }) => {
+  return (
+    <ErrorBoundary fallback={
+      <div className="p-3 bg-red-50 text-red-800 rounded-md text-sm">
+        Error displaying products
+      </div>
+    }>
+      <ProductGallery products={products} />
+    </ErrorBoundary>
+  );
+};
+
+const RichFormMessage = ({ formConfig, onSubmit }: { formConfig: any, onSubmit: (data: any) => void }) => {
+  return (
+    <ErrorBoundary fallback={
+      <div className="p-3 bg-red-50 text-red-800 rounded-md text-sm">
+        Error displaying form
+      </div>
+    }>
+      <DynamicForm formConfig={formConfig} onSubmit={onSubmit} />
+    </ErrorBoundary>
+  );
+};
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessageType[]>([
     {
@@ -54,7 +124,6 @@ export default function ChatInterface() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [isVoiceEnabled, setIsVoiceEnabled] = useState<boolean>(true);
@@ -74,13 +143,18 @@ export default function ChatInterface() {
         setIsConnected(data.status === 'ok');
         setConnectionError(null);
       } catch (error) {
-        console.error('Connection check failed:', error);
+        logger.error('Connection check failed:', error);
         setIsConnected(false);
         setConnectionError('Failed to connect to server');
       }
     };
 
     checkConnection();
+    
+    // Set up an interval to periodically check connection
+    const connectionInterval = setInterval(checkConnection, 60000); // Check every minute
+    
+    return () => clearInterval(connectionInterval);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -130,6 +204,13 @@ export default function ChatInterface() {
       };
       
       setMessages(prevMessages => [...prevMessages, errorMessage]);
+      
+      // Show error toast
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -344,273 +425,188 @@ export default function ChatInterface() {
 
   // Render different message types
   const renderMessage = (message: ChatMessageType) => {
-    switch (message.messageType) {
-      case 'file':
-        return (
-          <div className="flex flex-col space-y-2">
-            <p className="text-sm">{message.content}</p>
-            <div className="flex flex-wrap gap-2">
-              {message.files?.map(file => (
-                <a 
-                  key={file.id}
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center p-2 rounded bg-gray-100 text-xs hover:bg-gray-200 transition"
-                >
-                  {file.type.startsWith('image/') ? (
-                    <Image 
-                      src={file.url} 
-                      alt={file.name} 
-                      width={32}
-                      height={32}
-                      className="h-8 w-8 object-cover rounded mr-2" 
-                    />
-                  ) : (
-                    <div className="h-8 w-8 bg-gray-200 rounded flex items-center justify-center mr-2">
-                      <span className="text-xs">{file.name.split('.').pop()}</span>
-                    </div>
-                  )}
-                  <span className="truncate max-w-[120px]">{file.name}</span>
-                </a>
-              ))}
+    try {
+      switch (message.messageType) {
+        case 'file':
+          return (
+            <div className="flex flex-col space-y-2">
+              <p className="text-sm">{message.content}</p>
+              <div className="flex flex-wrap gap-2">
+                {message.files?.map(file => (
+                  <FileAttachment key={file.id} file={file} />
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      
-      case 'text':
-        // Check if there's rich data to render
-        if (message.richData) {
-          switch (message.richData.type) {
-            case 'order':
+          );
+        
+        case 'text':
+          // Check if there's rich data to render
+          if (message.richData) {
+            try {
+              switch (message.richData.type) {
+                case 'order':
+                  return (
+                    <div className="flex flex-col space-y-3">
+                      <p className="text-sm">{message.content}</p>
+                      <RichOrderMessage 
+                        order={message.richData.content} 
+                        onViewDetails={() => console.log(`View order: ${message.richData?.content.id}`)}
+                      />
+                    </div>
+                  );
+                  
+                case 'product':
+                  return (
+                    <div className="flex flex-col space-y-3">
+                      <p className="text-sm">{message.content}</p>
+                      <RichProductMessage products={message.richData.content} />
+                    </div>
+                  );
+                
+                case 'form':
+                  return (
+                    <div className="flex flex-col space-y-3">
+                      <p className="text-sm">{message.content}</p>
+                      <RichFormMessage 
+                        formConfig={message.richData.content} 
+                        onSubmit={(data) => console.log('Form submitted:', data)}
+                      />
+                    </div>
+                  );
+                  
+                default:
+                  return <p className="text-sm">{message.content}</p>;
+              }
+            } catch (error) {
+              logger.error('Error rendering rich message:', error);
               return (
-                <div className="flex flex-col space-y-3">
+                <div className="flex flex-col space-y-2">
                   <p className="text-sm">{message.content}</p>
-                  <OrderCard 
-                    order={message.richData.content} 
-                    onViewDetails={() => console.log(`View order: ${message.richData?.content.id}`)}
-                  />
+                  <p className="text-xs text-red-500">Error displaying rich content</p>
                 </div>
               );
-              
-            case 'product':
-              return (
-                <div className="flex flex-col space-y-3">
-                  <p className="text-sm">{message.content}</p>
-                  <ProductGallery 
-                    products={message.richData.content} 
-                    onSelectProduct={(product) => console.log(`Selected product: ${product.id}`)}
-                  />
-                </div>
-              );
-              
-            case 'form':
-              return (
-                <div className="flex flex-col space-y-3">
-                  <p className="text-sm">{message.content}</p>
-                  <DynamicForm 
-                    fields={message.richData.content.fields}
-                    title={message.richData.content.title}
-                    onSubmit={(values) => {
-                      // Handle form submission
-                      console.log('Form values:', values);
-                      // You would typically send this to your API
-                      const formResponseMessage: ChatMessageType = {
-                        id: Date.now().toString(),
-                        content: 'I submitted the form with the provided information',
-                        role: 'user',
-                        timestamp: new Date().toISOString(),
-                        messageType: 'text'
-                      };
-                      setMessages(prev => [...prev, formResponseMessage]);
-                    }}
-                  />
-                </div>
-              );
+            }
+          } else {
+            // Regular text message
+            return (
+              <p className="text-sm whitespace-pre-wrap">
+                {message.content}
+              </p>
+            );
           }
-        }
-        
-        // Default text rendering
-        return <p className="text-sm whitespace-pre-wrap">{message.content}</p>;
-        
-      default:
-        return <p className="text-sm">{message.content}</p>;
+          
+        default:
+          return <p className="text-sm">{message.content}</p>;
+      }
+    } catch (error) {
+      logger.error('Error rendering message:', error);
+      return <p className="text-sm text-red-500">Error displaying message</p>;
     }
   };
 
-  // Handle voice input
-  const handleVoiceInput = (text: string) => {
-    if (!text.trim()) return;
-    
-    logger.info('Voice input received:', text);
-    
-    // Set the input field with the transcribed text
-    setInput(text);
-    
-    // Automatically submit after voice input
-    const userMessage: ChatMessageType = {
-      id: Date.now().toString(),
-      content: text,
-      role: 'user',
-      timestamp: new Date().toISOString(),
-      messageType: 'text'
-    };
-    
-    setMessages(prevMessages => [...prevMessages, userMessage]);
-    setInput('');
-    setIsLoading(true);
-    
-    // Process the message
-    processMessage(text)
-      .then(response => {
-        const assistantMessage: ChatMessageType = {
-          id: (Date.now() + 1).toString(),
-          content: response.message,
-          role: 'assistant',
-          timestamp: new Date().toISOString(),
-          richData: response.richData,
-          messageType: response.richData?.type || 'text'
-        };
-        
-        setMessages(prevMessages => [...prevMessages, assistantMessage]);
-      })
-      .catch(error => {
-        logger.error('Error processing voice message:', error);
-        
-        const errorMessage: ChatMessageType = {
-          id: (Date.now() + 1).toString(),
-          content: 'Sorry, I had trouble processing your voice input. Could you try again?',
-          role: 'assistant',
-          timestamp: new Date().toISOString(),
-          messageType: 'text'
-        };
-        
-        setMessages(prevMessages => [...prevMessages, errorMessage]);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  };
-
-  if (isMinimized) {
-    return (
-      <div className="fixed bottom-4 right-4 w-16 h-16 bg-primary rounded-full shadow-lg cursor-pointer flex items-center justify-center"
-        onClick={() => setIsMinimized(false)}>
-        <Send className="h-6 w-6 text-white" />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="text-xl font-bold">Printavo Chat</h2>
-        <div className="flex items-center space-x-2">
-          <div className={`w-3 h-3 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-xs text-muted-foreground">{isConnected ? 'Connected' : 'Disconnected'}</span>
-          {connectionError && <span className="text-xs text-red-500 ml-2">{connectionError}</span>}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setIsMinimized(true)}
-            className="ml-2"
-          >
-            <Minimize2 className="h-4 w-4" />
-          </Button>
+    <div className="flex flex-col h-full relative">
+      {/* Connection error banner */}
+      {connectionError && (
+        <div className="absolute top-0 left-0 right-0 bg-red-500 text-white p-2 z-10 text-center text-sm">
+          <span className="flex items-center justify-center gap-2">
+            <XCircle className="h-4 w-4" />
+            {connectionError}
+          </span>
         </div>
-      </div>
+      )}
 
+      {/* Messages area */}
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message) => (
-            <div
+            <div 
               key={message.id}
-              className={`flex ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
+              className={`flex flex-col ${
+                message.role === 'user' ? 'items-end' : 'items-start'
               }`}
             >
-              <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : message.role === 'system'
-                    ? 'bg-muted text-muted-foreground'
-                    : 'bg-secondary text-secondary-foreground'
-                }`}
-              >
+              <div className={`flex flex-col max-w-[85%] rounded-lg p-3 ${
+                message.role === 'user' 
+                  ? 'bg-primary text-primary-foreground'
+                  : message.role === 'system'
+                    ? 'bg-destructive text-destructive-foreground'
+                    : 'bg-muted'
+              }`}>
                 {renderMessage(message)}
-                <span className="text-xs opacity-70 block mt-1">
-                  {formatTimestamp(message.timestamp)}
-                </span>
               </div>
-
-              {!isConnected && message.role === 'assistant' && (
-                <div className="text-xs text-amber-600 mt-1 italic">
-                  Note: This response is from the API. Connection issues may affect data accuracy.
-                </div>
-              )}
+              <span className="text-xs text-muted-foreground mt-1">
+                {formatTimestamp(message.timestamp)}
+              </span>
             </div>
           ))}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
+      {/* File upload overlay */}
       {showUpload && (
-        <div className="border-t p-4">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-medium">Upload Files</h3>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setShowUpload(false)}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className="p-4 bg-background border-t">
           <FileUpload 
-            onFileUpload={handleFileUpload} 
-            _parentType="chat"
-            _parentId="chat-session"
+            onUpload={handleFileUpload} 
+            onCancel={() => setShowUpload(false)}
+            isLoading={isLoading}
           />
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="p-4 border-t">
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowUpload(!showUpload)}
+      {/* Input area */}
+      <form 
+        onSubmit={handleSubmit} 
+        className="border-t p-3 bg-background flex items-center gap-2"
+      >
+        {isVoiceEnabled && (
+          <VoiceControl
+            onSpeechInput={(text) => setInput(text)}
             disabled={isLoading}
-            className="flex-shrink-0"
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
+          />
+        )}
+        
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          disabled={isLoading}
+          onClick={() => setShowUpload(!showUpload)}
+          className="flex-shrink-0"
+          aria-label="Attach file"
+        >
+          <Paperclip className="h-5 w-5" />
+          <span className="sr-only">Attach file</span>
+        </Button>
+        
+        <div className="flex-1 relative">
           <Input
+            type="text"
+            placeholder="Type a message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            disabled={isLoading || !isConnected}
-            className="flex-1"
-          />
-          <VoiceControl 
-            onSpeechInput={handleVoiceInput} 
             disabled={isLoading}
-            wakeWord="printavo"
+            className="pr-10"
+            aria-label="Message input"
           />
-          <Button type="submit" disabled={isLoading || !isConnected || !input.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
         </div>
+        
+        <Button 
+          type="submit" 
+          size="icon"
+          disabled={isLoading || !input.trim()}
+          className="flex-shrink-0"
+          aria-label="Send message"
+        >
+          {isLoading ? (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-foreground border-r-transparent" />
+          ) : (
+            <Send className="h-5 w-5" />
+          )}
+          <span className="sr-only">Send message</span>
+        </Button>
       </form>
     </div>
   );
 }
-
-
-
-
-
-

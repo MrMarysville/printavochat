@@ -1,35 +1,33 @@
-import { NextResponse } from 'next/server';
 import { checkApiConnection } from '@/lib/printavo-api';
+import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 
 export async function GET() {
+  logger.info('Health check endpoint called');
+  
+  // Check API connectivity
   try {
-    // Check Printavo API connection
-    const apiStatus = await checkApiConnection();
+    const printavoApiStatus = await checkApiConnection();
     
-    // Return API connection status
+    logger.info(`Printavo API connection status: ${printavoApiStatus.connected ? 'Connected' : 'Not connected'}`);
+    
+    // Return status and timestamp
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      printavoApi: {
-        connected: apiStatus.connected,
-        message: apiStatus.message,
-        account: apiStatus.connected ? apiStatus.account : undefined
-      }
+      printavoApi: printavoApiStatus
     });
   } catch (error) {
-    logger.error('Health check error:', error);
+    logger.error('Health check failed:', error);
     
-    // Always return 200 OK with error details in the response body
-    // This ensures the client can always get information about the API status
     return NextResponse.json({
-      status: 'ok', // Still return "ok" status for the health endpoint itself
+      status: 'error',
       timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : 'Unknown error',
       printavoApi: {
         connected: false,
-        message: 'API connection check failed with error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Failed to check Printavo API connection'
       }
-    });
+    }, { status: 500 });
   }
 } 

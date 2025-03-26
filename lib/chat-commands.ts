@@ -136,6 +136,27 @@ export async function processChatQuery(userQuery: string): Promise<ChatCommandRe
     return await addLineItemToQuote(itemText);
   }
 
+  // Check for editing a line item in the quote
+  const editItemMatch = query.match(/edit (?:item|product|line item)(?: number| #)? (\d+):? (.*)/i);
+  if (editItemMatch && globalQuoteCreationState.active) {
+    const itemIndex = parseInt(editItemMatch[1]) - 1;
+    const newItemText = editItemMatch[2]?.trim();
+    return await editLineItem(itemIndex, newItemText);
+  }
+
+  // Check for removing a line item from the quote
+  const removeItemMatch = query.match(/(?:remove|delete) (?:item|product|line item)(?: number| #)? (\d+)/i);
+  if (removeItemMatch && globalQuoteCreationState.active) {
+    const itemIndex = parseInt(removeItemMatch[1]) - 1;
+    return await removeLineItem(itemIndex);
+  }
+
+  // Check for showing a preview of the current quote
+  const previewMatch = query.match(/(?:preview|show|display|review|view)(?: the| this)? quote/i);
+  if (previewMatch && globalQuoteCreationState.active) {
+    return await previewQuote();
+  }
+
   // Check for providing customer name during customer creation
   if (globalQuoteCreationState.active && globalQuoteCreationState.stage === 'customer_details') {
     // Capture first and last name
@@ -1202,4 +1223,261 @@ async function addImprintToGroup(groupName: string, imprintDetails: string): Pro
       message: `I couldn't find a line item group named "${groupName}". Please create it first with "Add group: ${groupName}".`
     };
   }
+}
+
+/**
+ * Edits an existing line item in the quote
+ * @param itemIndex The 0-based index of the item to edit
+ * @param newItemText The new line item text
+ * @returns A result object with the result of the operation
+ */
+async function editLineItem(itemIndex: number, newItemText: string): Promise<ChatCommandResult> {
+  if (!globalQuoteCreationState.active) {
+    return {
+      success: false,
+      message: "There's no active quote to edit."
+    };
+  }
+
+  // Skip if we're still in customer info stage
+  if (globalQuoteCreationState.stage === 'customer' || globalQuoteCreationState.stage === 'customer_details') {
+    return {
+      success: false,
+      message: "Let's finish setting up the customer information first before editing items."
+    };
+  }
+
+  logger.info(`Editing line item ${itemIndex + 1} with text: ${newItemText}`);
+
+  // Find the item to edit
+  let itemFound = false;
+  let itemName = "";
+  
+  // Iterate through all line item groups to find the item at the specified index
+  let flatIndex = 0;
+  for (const group of globalQuoteCreationState.lineItemGroups) {
+    for (let i = 0; i < group.lineItems.length; i++) {
+      if (flatIndex === itemIndex) {
+        // Parse the new item text
+        const { quantity, name, price, description } = parseLineItemText(newItemText);
+        
+        if (quantity !== undefined && price !== undefined) {
+          // Store the original name for the success message
+          itemName = group.lineItems[i].name;
+          
+          // Update the item
+          group.lineItems[i] = {
+            name: name || group.lineItems[i].name,
+            description: description || group.lineItems[i].description,
+            quantity: quantity,
+            unitPrice: price
+          };
+          
+          itemFound = true;
+          break;
+        } else {
+          return {
+            success: false,
+            message: "Invalid item format. Please specify quantity and price, e.g., 'edit item 1: 25 t-shirts at $18 each'."
+          };
+        }
+      }
+      flatIndex++;
+    }
+    if (itemFound) break;
+  }
+
+  if (!itemFound) {
+    return {
+      success: false,
+      message: `Cannot find item #${itemIndex + 1}. Use 'preview quote' to see the current items.`
+    };
+  }
+
+  return {
+    success: true,
+    message: `Updated item #${itemIndex + 1} (${itemName}). You can say 'preview quote' to see all current items.`
+  };
+}
+
+/**
+ * Removes a line item from the quote
+ * @param itemIndex The 0-based index of the item to remove
+ * @returns A result object with the result of the operation
+ */
+async function removeLineItem(itemIndex: number): Promise<ChatCommandResult> {
+  if (!globalQuoteCreationState.active) {
+    return {
+      success: false,
+      message: "There's no active quote to edit."
+    };
+  }
+
+  // Skip if we're still in customer info stage
+  if (globalQuoteCreationState.stage === 'customer' || globalQuoteCreationState.stage === 'customer_details') {
+    return {
+      success: false,
+      message: "Let's finish setting up the customer information first before removing items."
+    };
+  }
+
+  logger.info(`Removing line item ${itemIndex + 1}`);
+
+  // Find the item to remove
+  let itemFound = false;
+  let itemName = "";
+  
+  // Iterate through all line item groups to find the item at the specified index
+  let flatIndex = 0;
+  for (const group of globalQuoteCreationState.lineItemGroups) {
+    for (let i = 0; i < group.lineItems.length; i++) {
+      if (flatIndex === itemIndex) {
+        // Store the name for the success message
+        itemName = group.lineItems[i].name;
+        
+        // Remove the item
+        group.lineItems.splice(i, 1);
+        itemFound = true;
+        break;
+      }
+      flatIndex++;
+    }
+    if (itemFound) break;
+  }
+
+  if (!itemFound) {
+    return {
+      success: false,
+      message: `Cannot find item #${itemIndex + 1}. Use 'preview quote' to see the current items.`
+    };
+  }
+
+  // Remove any empty groups after item removal
+  globalQuoteCreationState.lineItemGroups = globalQuoteCreationState.lineItemGroups.filter(
+    group => group.lineItems.length > 0
+  );
+
+  return {
+    success: true,
+    message: `Removed item #${itemIndex + 1} (${itemName}). You can say 'preview quote' to see all current items.`
+  };
+}
+
+/**
+ * Shows a preview of the current quote
+ * @returns A result object with the formatted preview
+ */
+async function previewQuote(): Promise<ChatCommandResult> {
+  if (!globalQuoteCreationState.active) {
+    return {
+      success: false,
+      message: "There's no active quote to preview."
+    };
+  }
+
+  // Skip if we're still in customer info stage
+  if (globalQuoteCreationState.stage === 'customer' || globalQuoteCreationState.stage === 'customer_details') {
+    return {
+      success: false,
+      message: "Let's finish setting up the customer information first before previewing the quote."
+    };
+  }
+
+  logger.info(`Generating quote preview`);
+
+  // Create a preview of the quote
+  let preview = "**Current Quote Preview:**\n\n";
+
+  // Add customer information
+  preview += "**Customer:**\n";
+  if (globalQuoteCreationState.quoteData.customerId) {
+    const customerName = globalQuoteCreationState.quoteData.customerName || "Customer ID: " + globalQuoteCreationState.quoteData.customerId;
+    preview += `${customerName}\n`;
+  } else if (globalQuoteCreationState.pendingCustomer?.email) {
+    const name = globalQuoteCreationState.pendingCustomer.firstName && globalQuoteCreationState.pendingCustomer.lastName
+      ? `${globalQuoteCreationState.pendingCustomer.firstName} ${globalQuoteCreationState.pendingCustomer.lastName}`
+      : "New customer";
+    preview += `${name} (${globalQuoteCreationState.pendingCustomer.email})\n`;
+  } else {
+    preview += "No customer set\n";
+  }
+
+  // Add line items
+  preview += "\n**Items:**\n";
+  
+  if (globalQuoteCreationState.lineItemGroups.length === 0) {
+    preview += "No items added yet\n";
+  } else {
+    let totalAmount = 0;
+    let itemNumber = 1;
+    
+    globalQuoteCreationState.lineItemGroups.forEach(group => {
+      preview += `\n*${group.name}*\n`;
+      
+      group.lineItems.forEach(item => {
+        const itemTotal = item.quantity * item.unitPrice;
+        totalAmount += itemTotal;
+        
+        preview += `${itemNumber}. ${item.name} - ${item.quantity} x $${item.unitPrice.toFixed(2)} = $${itemTotal.toFixed(2)}\n`;
+        if (item.description) {
+          preview += `   Description: ${item.description}\n`;
+        }
+        itemNumber++;
+      });
+    });
+    
+    // Add total
+    preview += `\n**Total: $${totalAmount.toFixed(2)}**\n`;
+  }
+
+  // Add notes
+  if (globalQuoteCreationState.quoteData.notes) {
+    preview += `\n**Notes:** ${globalQuoteCreationState.quoteData.notes}\n`;
+  }
+
+  // Add actions
+  preview += "\n**Available Actions:**\n";
+  preview += "- Add item: 'add item: 20 shirts at $15 each'\n";
+  preview += "- Edit item: 'edit item 1: 25 shirts at $18 each'\n";
+  preview += "- Remove item: 'remove item 2'\n";
+  preview += "- Add notes: 'notes: This is a rush order'\n";
+  preview += "- Finalize: 'finalize quote'\n";
+
+  return {
+    success: true,
+    message: preview
+  };
+}
+
+/**
+ * Helper function to parse line item text into components
+ * @param itemText The text to parse
+ * @returns An object with the extracted components
+ */
+function parseLineItemText(itemText: string): { quantity?: number; name?: string; price?: number; description?: string } {
+  // This is a simplified version - the actual implementation would need to be more robust
+  const quantityMatch = itemText.match(/(\d+)/);
+  const priceMatch = itemText.match(/\$(\d+\.?\d*)/);
+  
+  // Extract name
+  let name = itemText;
+  name = name.replace(/\d+ +/, ''); // Remove quantity
+  name = name.replace(/\$\d+\.?\d* *(each|per item|per unit|per piece)?/, ''); // Remove price
+  name = name.replace(/(at|for) +$/, ''); // Remove trailing "at" or "for"
+  name = name.replace(/^[,\s]+|[,\s]+$/g, ''); // Trim spaces and commas
+  
+  // Extract description
+  let description: string | undefined;
+  const descriptionMatch = name.match(/(.*?) - (.*)/);
+  if (descriptionMatch) {
+    name = descriptionMatch[1]?.trim();
+    description = descriptionMatch[2]?.trim();
+  }
+  
+  return {
+    quantity: quantityMatch ? parseInt(quantityMatch[1]) : undefined,
+    name: name || undefined,
+    price: priceMatch ? parseFloat(priceMatch[1]) : undefined,
+    description
+  };
 }

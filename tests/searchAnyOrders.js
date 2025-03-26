@@ -19,40 +19,31 @@ console.log('Using Printavo API URL:', API_URL);
 console.log('API token is set (first 5 chars):', API_TOKEN.substring(0, 5) + '...');
 
 // Helper function to make GraphQL requests
-async function executeGraphQL(query, variables) {
+async function executeGraphQL(query, variables, operationName) {
   try {
     const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${API_TOKEN}`,
+        'email': API_EMAIL,
+        'token': API_TOKEN,
       },
       body: JSON.stringify({
         query,
         variables,
+        operationName
       }),
     });
     
-    console.log('Response status:', response.status, response.statusText);
-    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error Response:', errorText);
-      return { error: errorText };
+      console.error(`HTTP error ${response.status}: ${response.statusText}`);
+      return { error: `HTTP error ${response.status}` };
     }
     
-    const result = await response.json();
-    
-    if (result.errors) {
-      console.error('GraphQL errors:', JSON.stringify(result.errors, null, 2));
-      return { error: result.errors };
-    }
-    
-    return result.data;
+    return await response.json();
   } catch (error) {
-    console.error('Error executing GraphQL:', error);
-    return { error: error.message };
+    console.error('Error executing GraphQL query:', error);
+    return { error: error.message || 'Unknown error' };
   }
 }
 
@@ -89,7 +80,7 @@ async function getAllRecentOrders() {
     }
   `;
   
-  const data = await executeGraphQL(query, {});
+  const data = await executeGraphQL(query, {}, "GetRecentOrders");
   
   if (data.error) {
     console.log('Failed to get recent orders');
@@ -136,7 +127,7 @@ async function getAllProducts() {
     }
   `;
   
-  const data = await executeGraphQL(query, {});
+  const data = await executeGraphQL(query, {}, "GetAllProducts");
   
   if (data.error) {
     console.log('Failed to get products');
@@ -177,7 +168,7 @@ async function getAllCustomers() {
     }
   `;
   
-  const data = await executeGraphQL(query, {});
+  const data = await executeGraphQL(query, {}, "GetAllCustomers");
   
   if (data.error) {
     console.log('Failed to get customers');
@@ -214,7 +205,7 @@ async function getAccountInfo() {
     }
   `;
   
-  const data = await executeGraphQL(query, {});
+  const data = await executeGraphQL(query, {}, "GetAccountInfo");
   
   if (data.error) {
     console.log('Failed to get account info');

@@ -5,8 +5,9 @@ import { GraphQLClient } from 'graphql-request';
 // Types are imported in other files where they are used
 import Ajv from 'ajv';
 
-// Use our proxy API endpoint instead of calling Printavo directly
-const PRINTAVO_API_URL = '/api/proxy/printavo';
+// Get API URL from environment variables with fallback
+const PRINTAVO_API_URL = process.env.NEXT_PUBLIC_PRINTAVO_API_URL || 'https://www.printavo.com/api/v2';
+const GRAPHQL_ENDPOINT = `${PRINTAVO_API_URL}/graphql`;
 
 // Initialize JSON schema validator
 const ajv = new Ajv();
@@ -63,32 +64,34 @@ export type PrintavoAPIResponse<T = any> = {
 
 // Get API credentials from environment variables
 function _getApiCredentials() {
-  const apiEmail = process.env.PRINTAVO_EMAIL;
-  const apiToken = process.env.NEXT_PUBLIC_PRINTAVO_TOKEN || '';
+  const apiEmail = process.env.NEXT_PUBLIC_PRINTAVO_EMAIL;
+  const apiToken = process.env.NEXT_PUBLIC_PRINTAVO_TOKEN;
 
   if (!apiEmail || !apiToken) {
-    throw new Error('Printavo API credentials not configured. Please set PRINTAVO_EMAIL and PRINTAVO_TOKEN environment variables.');
+    throw new Error('Printavo API credentials not configured. Please set NEXT_PUBLIC_PRINTAVO_EMAIL and NEXT_PUBLIC_PRINTAVO_TOKEN environment variables.');
   }
 
   return { apiEmail, apiToken };
 }
 
 // Initialize GraphQL client
+const apiEmail = process.env.NEXT_PUBLIC_PRINTAVO_EMAIL || '';
 const apiToken = process.env.NEXT_PUBLIC_PRINTAVO_TOKEN || '';
-logger.info(`Printavo API credentials found. Using proxy endpoint: ${PRINTAVO_API_URL}`);
+logger.info(`Printavo API credentials found. Using GraphQL endpoint: ${GRAPHQL_ENDPOINT}`);
+logger.info(`Using email: ${apiEmail}`);
 logger.info(`Token length: ${apiToken.length} characters`);
 
-export const printavoClient = new GraphQLClient(PRINTAVO_API_URL, {
+export const printavoClient = new GraphQLClient(GRAPHQL_ENDPOINT, {
   headers: {
-    'email': process.env.NEXT_PUBLIC_PRINTAVO_EMAIL || '',
-    'token': process.env.NEXT_PUBLIC_PRINTAVO_TOKEN || '',
+    'email': apiEmail,
+    'token': apiToken,
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
   fetch: (url, options) => {
-    logger.info(`Making request to: ${url}`);
+    logger.debug(`Making request to: ${url}`);
     return fetch(url, options).then(response => {
-      logger.info(`Response status: ${response.status} ${response.statusText}`);
+      logger.debug(`Response status: ${response.status} ${response.statusText}`);
       return response;
     }).catch(error => {
       logger.error(`Network error:`, error);

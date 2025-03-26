@@ -57,7 +57,7 @@ export const OrdersAPI = {
     
     try {
       // Try direct GraphQL query
-      const data = await executeGraphQL(query, { query: visualId });
+      const data = await executeGraphQL(query, { query: visualId }, "FindInvoiceByVisualId");
       
       if (data.invoices.edges.length > 0) {
         logger.info(`[OrdersAPI] Found order with visual ID: ${visualId}`);

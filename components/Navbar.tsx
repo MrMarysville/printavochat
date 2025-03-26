@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, Home, ShoppingCart, Users, FileText, Settings, ChevronDown } from 'lucide-react';
+import GlobalSearch from './GlobalSearch';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: <Home className="h-5 w-5" /> },
@@ -49,7 +50,12 @@ export function Navbar() {
           </div>
 
           {/* Right Side Menu & Mobile Toggle */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-4">
+            {/* Global Search */}
+            <div className="hidden md:block">
+              <GlobalSearch />
+            </div>
+            
             <div className="flex items-center">
               <div className="relative inline-block text-left">
                 <button
@@ -87,6 +93,11 @@ export function Navbar() {
         className={`${isMobileMenuOpen ? 'block' : 'hidden'} sm:hidden`}
         id="mobile-menu"
       >
+        {/* Mobile search */}
+        <div className="px-4 py-2">
+          <GlobalSearch />
+        </div>
+        
         <div className="px-2 pt-2 pb-3 space-y-1">
           {navItems.map((item) => (
             <Link
@@ -107,4 +118,4 @@ export function Navbar() {
       </div>
     </nav>
   );
-} 
+}
