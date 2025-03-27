@@ -193,6 +193,55 @@ If your app fails to connect to the Printavo API:
 
 The application has safeguards to verify the API connection at startup, but always ensure your `.env` file follows the required format.
 
+## Printavo MCP Integration
+
+The application now includes an integration with the Printavo GraphQL MCP Server, which provides direct access to the Printavo API through Cursor.ai's Model Context Protocol.
+
+### Setting Up the MCP Integration
+
+To enable the MCP integration:
+
+1. **MCP Server Setup**:
+   - The Printavo GraphQL MCP server is located at `C:/Users/King/Documents/Cline/MCP/printavo-graphql-mcp-server`
+   - Make sure the server is running and properly configured
+
+2. **Environment Configuration**:
+   - Add the following setting to your `.env.local` file:
+   ```
+   USE_PRINTAVO_MCP=true
+   ```
+
+3. **Available Features**:
+   - `getOrder`: Retrieve order details by ID
+   - `getCustomer`: Retrieve customer details by ID
+   - `searchOrders`: Search for orders using a query string
+
+### Testing the MCP Integration
+
+The application includes a test endpoint to verify the MCP integration is working:
+
+1. **Test API Endpoint**:
+   - Navigate to `/api/test-mcp?query=your_search_term` in your browser
+   - This will execute a search using the MCP client and return the results
+
+2. **Troubleshooting**:
+   - If the test returns an error, check that the MCP server is running
+   - Verify your Printavo API credentials are correct
+   - You can disable the MCP integration by setting `USE_PRINTAVO_MCP=false` in your `.env.local` file
+
+### Fallback Mechanism
+
+The application is designed to automatically fall back to direct API calls if the MCP client fails:
+
+1. **Automatic Fallback**:
+   - If the MCP client returns an error, the application will retry using direct API calls
+   - All operations will still work even if the MCP server is unavailable
+   - Logs will show warnings when falling back to direct API calls
+
+2. **Manual Override**:
+   - You can manually disable the MCP integration by setting `USE_PRINTAVO_MCP=false` in your `.env.local` file
+   - This will force the application to use direct API calls for all operations
+
 ## Contributing
 
 1. Fork the repository

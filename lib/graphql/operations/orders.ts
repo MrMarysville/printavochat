@@ -8,50 +8,33 @@ import { PrintavoNotFoundError } from '../errors';
 import cache from '../../cache';
 
 // Get order by ID
-export async function getOrder(id: string): Promise<PrintavoAPIResponse<PrintavoOrder>> {
-  // Generate a cache key for this order ID
-  const cacheKey = `order_id_${id}`;
-  
-  // Check if we have a cached result
-  const cachedResult = cache.get<PrintavoAPIResponse<PrintavoOrder>>(cacheKey);
-  if (cachedResult) {
-    logger.info(`Using cached result for order with ID: ${id}`);
-    return cachedResult;
-  }
-
-  try {
-    logger.info(`Fetching order with ID: ${id}`);
-    const result = await query<{ order: PrintavoOrder }>(QUERIES.order, { id });
-    
-    if (!result.data?.order) {
-      logger.warn(`Order not found with ID: ${id}`);
-      return { 
-        data: undefined,
-        errors: [{ message: `Order not found with ID: ${id}` }],
-        success: false, 
-        error: new PrintavoNotFoundError(`Order not found with ID: ${id}`) 
-      };
+export const getOrder = async (id: string) => {
+  const operationName = "GetOrder";
+  const query = `
+    query ${operationName}($id: ID!) {
+      order(id: $id) {
+        id
+        visualId
+        // Other fields...
+      }
     }
-    
-    logger.info(`Successfully retrieved order: ${id}`);
-    
-    const response = { 
-      data: result.data.order,
-      success: true 
-    };
-    // Cache the successful result for 5 minutes
-    cache.set(cacheKey, response);
-    return response;
-  } catch (error) {
-    logger.error(`Error fetching order with ID ${id}:`, error);
-    return {
-      data: undefined,
-      errors: [{ message: `Failed to fetch order with ID: ${id}` }],
-      success: false,
-      error: handleAPIError(error, `Failed to fetch order with ID: ${id}`)
-    };
-  }
-}
+  `;
+  return executeGraphQL(query, { id }, operationName);
+};
+
+export const updateOrder = async (id: string, input: any) => {
+  const operationName = "UpdateOrder";
+  const mutation = `
+    mutation ${operationName}($id: ID!, $input: OrderUpdateInput!) {
+      orderUpdate(id: $id, input: $input) {
+        id
+        visualId
+        // Other fields...
+      }
+    }
+  `;
+  return executeGraphQL(mutation, { id, input }, operationName);
+};
 
 // Get order by Visual ID with multi-tiered fallback approach
 export async function getOrderByVisualId(visualId: string): Promise<PrintavoAPIResponse<PrintavoOrder>> {

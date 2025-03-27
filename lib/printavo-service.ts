@@ -9,13 +9,19 @@ import {
   PrintavoAuthenticationError,
   PrintavoValidationError
 } from './printavo-api';
+import { printavoMcpClient } from './printavo-mcp-client';
 
 class PrintavoService {
   private static instance: PrintavoService;
   private apiClient: EnhancedAPIClient;
+  private useMcpClient: boolean = true;
 
   private constructor() {
     this.apiClient = EnhancedAPIClient.getInstance();
+    
+    // Check if we should use the MCP client or direct API
+    this.useMcpClient = process.env.USE_PRINTAVO_MCP !== 'false';
+    logger.info(`PrintavoService initialized, using MCP client: ${this.useMcpClient}`);
   }
 
   static getInstance(): PrintavoService {
@@ -27,6 +33,20 @@ class PrintavoService {
 
   async getOrder(id: string) {
     logger.info(`[PrintavoService] Getting order with ID: ${id}`);
+    
+    if (this.useMcpClient) {
+      try {
+        const mcpResult = await printavoMcpClient.getOrder(id);
+        if (mcpResult.success) {
+          return mcpResult;
+        }
+        logger.warn(`MCP client failed, falling back to direct API: ${JSON.stringify(mcpResult.errors)}`);
+      } catch (error) {
+        logger.warn(`MCP client error, falling back to direct API: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    
+    // Fall back to direct API
     try {
       const result = await getOrder(id);
       return result;
@@ -42,6 +62,30 @@ class PrintavoService {
 
   async getOrderByVisualId(visualId: string): Promise<PrintavoAPIResponse<PrintavoOrder>> {
     logger.info(`Getting order by Visual ID: ${visualId}`);
+    
+    if (this.useMcpClient) {
+      try {
+        // Use the search functionality to find by visual ID
+        const mcpResult = await printavoMcpClient.searchOrders(visualId);
+        if (mcpResult.success) {
+          // If we have results that match the visual ID, return the first one
+          if (mcpResult.data && Array.isArray(mcpResult.data)) {
+            const order = mcpResult.data.find(order => order.visualId === visualId);
+            if (order) {
+              return {
+                success: true,
+                data: order
+              };
+            }
+          }
+        }
+        logger.warn(`MCP client failed for visual ID, falling back to direct API: ${JSON.stringify(mcpResult.errors)}`);
+      } catch (error) {
+        logger.warn(`MCP client error for visual ID, falling back to direct API: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    
+    // Fall back to direct API
     return await this.apiClient.getOrder(visualId);
   }
 
@@ -53,6 +97,28 @@ class PrintavoService {
     sortDescending?: boolean;
   } = {}): Promise<PrintavoAPIResponse<{ quotes: { edges: Array<{ node: PrintavoOrder }> } }>> {
     logger.info(`Searching orders with params: ${JSON.stringify(params)}`);
+    
+    if (this.useMcpClient && params.query) {
+      try {
+        const mcpResult = await printavoMcpClient.searchOrders(params.query, params.first || 10);
+        if (mcpResult.success) {
+          // Transform the result to match the expected format
+          return {
+            success: true,
+            data: {
+              quotes: {
+                edges: (mcpResult.data || []).map(order => ({ node: order }))
+              }
+            }
+          };
+        }
+        logger.warn(`MCP client failed for search, falling back to direct API: ${JSON.stringify(mcpResult.errors)}`);
+      } catch (error) {
+        logger.warn(`MCP client error for search, falling back to direct API: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    
+    // Fall back to direct API
     return await this.apiClient.searchOrders(params);
   }
 
@@ -107,6 +173,15 @@ class PrintavoService {
         error: error instanceof Error ? error : new Error(`Unknown error: ${error}`)
       };
     }
+  }
+  
+  /**
+   * Set whether to use the MCP client or direct API
+   * @param use Whether to use the MCP client (true) or direct API (false)
+   */
+  setUseMcpClient(use: boolean) {
+    this.useMcpClient = use;
+    logger.info(`PrintavoService updated, using MCP client: ${this.useMcpClient}`);
   }
 }
 

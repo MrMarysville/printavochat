@@ -12,6 +12,7 @@
 - `lib/operations.ts`: Manages the determination and execution of operations based on user input.
 - `app/api/printavo/route.ts`: API route for Printavo operations, providing a RESTful interface for frontend.
 - `app/api/chat/route.ts`: API route for chat functionality, processes messages and provides responses.
+- `lib/printavo-mcp-client.ts`: Handles interaction with the Printavo GraphQL MCP Server using the MCP tools.
 
 ## Critical Patterns
 
@@ -36,6 +37,21 @@
   - Properly categorizes errors to determine if retry is appropriate
   - Limits maximum retry attempts to prevent endless loops
   - Provides detailed logging for debugging API issues
+
+### MCP Client Pattern
+- The application supports using the Printavo GraphQL MCP Server for API operations
+- The MCP integration is controlled by the `USE_PRINTAVO_MCP` environment variable
+- The `printavo-mcp-client.ts` file provides a singleton client for MCP operations:
+  - `getOrder`: Retrieves order details by ID
+  - `getCustomer`: Retrieves customer details by ID
+  - `searchOrders`: Searches for orders with a query string
+- The application uses a fallback strategy when the MCP client fails:
+  1. First attempt uses the MCP client if enabled
+  2. If the MCP client fails, log a warning and fall back to direct API
+  3. Continue with direct API calls as usual
+- The PrintavoService class includes a `setUseMcpClient` method to toggle MCP usage at runtime
+- Type definitions for MCP tools are in `lib/types/mcp.d.ts`
+- A test API endpoint is available at `/api/test-mcp` for verifying MCP integration
 
 ### Context Tracking
 - Conversation context is tracked in `ConversationContext` interface

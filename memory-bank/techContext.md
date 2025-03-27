@@ -143,18 +143,36 @@
 -   **Testing:** Write comprehensive unit and integration tests to ensure code quality and prevent regressions.
 -   **Deployment:** Define deployment strategy and environment (e.g., Vercel, AWS, Docker).
 
-## External Service Integrations
+## MCP Servers (Model Context Protocol)
+
+MCP servers extend Cline's capabilities by providing specialized tools and access to external APIs or systems.
+
+### Supabase MCP Server (`github.com/alexander-zuev/supabase-mcp-server`)
+- **Purpose:** Provides tools to interact with the project's Supabase database and management API.
+- **Location:** Installed via executable (`C:\Users\King\.local\bin\supabase-mcp-server.exe`).
+- **Technology:** Rust, `@modelcontextprotocol/sdk`.
+- **Setup:** Configured in `cline_mcp_settings.json` with Supabase project details.
+- **Status:** Installed and running.
 
 ### SanMar MCP Server (`sanmar-mcp-server`)
 - **Purpose:** Provides tools to interact with the SanMar API (both Standard and PromoStandards) via SOAP.
 - **Location:** `C:\Users\King\Documents\Cline\MCP\sanmar-mcp-server`
-- **Technology:** Node.js, `soap` package for SOAP communication, `@modelcontextprotocol/sdk` for MCP implementation.
-- **Setup:** Configured in `cline_mcp_settings.json` with necessary environment variables (SANMAR_CUSTOMER_NUMBER, SANMAR_USERNAME, SANMAR_PASSWORD).
-- **Status:** Installed and running. Provides a wide range of tools for product info, inventory, pricing, orders, invoices, etc.
+- **Technology:** Node.js, `soap` package, `@modelcontextprotocol/sdk`.
+- **Setup:** Configured in `cline_mcp_settings.json` with SanMar credentials.
+- **Status:** Installed and running. Provides a wide range of tools.
 
 ### SanMar FTP MCP Server (`sanmar-ftp-mcp-server`)
 - **Purpose:** Downloads files from the SanMar FTP server.
 - **Location:** `C:\Users\King\Documents\Cline\MCP\sanmar-ftp-mcp-server`
-- **Technology:** Node.js, `ssh2` package for SFTP communication, `@modelcontextprotocol/sdk` for MCP implementation.
-- **Setup:** To be configured in `cline_mcp_settings.json` with necessary environment variables (SANMAR_FTP_HOST, SANMAR_FTP_USERNAME, SANMAR_FTP_PASSWORD).
-- **Status:** Not yet running.
+- **Technology:** Node.js, `ssh2` package, `@modelcontextprotocol/sdk`.
+- **Setup:** Configured in `cline_mcp_settings.json` (credentials might be placeholders).
+- **Status:** Installed, potentially running (credentials need verification).
+
+### Printavo GraphQL MCP Server (`printavo-graphql-mcp-server`)
+- **Purpose:** Provides tools to interact directly with the Printavo GraphQL API (v2).
+- **Location:** `C:\Users\King\Documents\Cline\MCP\printavo-graphql-mcp-server`
+- **Technology:** Node.js, `@modelcontextprotocol/sdk`. Uses `fetch` internally for API calls.
+- **Setup:** Configured in `cline_mcp_settings.json` with Printavo API URL, email, and token.
+- **Status:** Installed and running.
+- **Documentation:** See `memory-bank/printavo-mcp-server.md` for details on tools and usage.
+- **Integration:** The main application can optionally use this server via `lib/printavo-mcp-client.ts`, controlled by the `USE_PRINTAVO_MCP` environment variable.

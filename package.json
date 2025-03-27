@@ -17,6 +17,7 @@
     "test-final": "node scripts/suppress-warnings.js && node tests/testFinalEndpoint.js",
     "test-chat": "node scripts/suppress-warnings.js && node tests/chat-operations.test.js",
     "test-visualid": "node scripts/suppress-warnings.js && node tests/visual-id-search.test.js",
+    "test-mcp": "node scripts/test-mcp-client.js",
     "check-api": "node scripts/suppress-warnings.js && node scripts/check-api-connection.js"
   },
   "dependencies": {

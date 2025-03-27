@@ -308,59 +308,42 @@ export async function executeGraphQL(
 
   // Try to extract operation name from query if not provided
   if (!operationName || operationName.trim() === '') {
-    // Attempt to match operation name from query or mutation definitions (case insensitive)
-    const operationMatch = query.match(/\b(?:query|mutation)\s+([A-Za-z0-9_]+)\b/i);
+    // First try to match a named operation
+    const operationMatch = query.match(/(?:query|mutation)\s+([A-Za-z][A-Za-z0-9_]*)/);
+    
     if (operationMatch && operationMatch[1]) {
       operationName = operationMatch[1];
-      logger.debug(`Extracted GraphQL operation name from query: ${operationName}`);
+      logger.debug(`Found existing operation name in query: ${operationName}`);
     } else {
-      // If we cannot extract a name, generate a default one based on the query content
-      // This avoids the "No operation named ''" error
+      // If no operation name found, we need to add one
       const queryHash = hashQuery(query);
-      const defaultOpName = `GraphQLQuery_${queryHash}`;
-      operationName = defaultOpName;
-      logger.warn(`No operation name provided and could not extract from query. Using generated name: ${operationName}`, {
-        query: query.substring(0, 100) + '...'
-      });
+      operationName = `AutoGen_${queryHash}`;
+      logger.debug(`Generated operation name: ${operationName}`);
       
-      // Add operation name to the query if it doesn't have one
-      if (!query.match(/\b(?:query|mutation)\s+[A-Za-z0-9_]+\b/i)) {
-        // Check if this is a query or mutation
-        const isQuery = !query.trim().startsWith('mutation');
-        // Safely insert the operation name at the beginning of the query
-        if (isQuery) {
-          if (query.trim().startsWith('{')) {
-            // Anonymous query starting with { - add query keyword and name
-            query = `query ${operationName} ${query}`;
-          } else {
-            // Named query but without operation name - try to add it
-            query = query.replace(/^\s*query\s*{/, `query ${operationName} {`);
-            if (!query.includes(`query ${operationName}`)) {
-              // If replacement failed, try a simpler approach
-              query = `query ${operationName} ${query}`;
-            }
-          }
-        } else {
-          // Handle mutations similarly
-          query = query.replace(/^\s*mutation\s*{/, `mutation ${operationName} {`);
-          if (!query.includes(`mutation ${operationName}`)) {
-            // If replacement failed, try a simpler approach
-            query = `mutation ${operationName} ${query}`;
-          }
-        }
-        logger.debug(`Modified query to include operation name: ${query.substring(0, 100)}...`);
+      // Modify the query to include the operation name
+      const trimmedQuery = query.trim();
+      
+      if (trimmedQuery.startsWith('mutation')) {
+        // Handle mutation
+        query = `mutation ${operationName}${trimmedQuery.slice(8)}`;
+      } else if (trimmedQuery.startsWith('query')) {
+        // Handle explicit query
+        query = `query ${operationName}${trimmedQuery.slice(5)}`;
+      } else if (trimmedQuery.startsWith('{')) {
+        // Handle anonymous query
+        query = `query ${operationName} ${trimmedQuery}`;
+      } else {
+        // Default to query if unclear
+        query = `query ${operationName} { ${trimmedQuery} }`;
       }
+      
+      logger.debug(`Modified query with operation name: ${query.substring(0, 100)}...`);
     }
   }
 
-  // Final validation - ensure we have an operation name before proceeding
+  // Final validation
   if (!operationName || operationName.trim() === '') {
-    const error = new Error('GraphQL operation name is required but could not be determined');
-    logger.error('Failed to determine operation name for GraphQL query', {
-      query: query.substring(0, 500),
-      error
-    });
-    throw error;
+    throw new Error('GraphQL operation name is required but could not be determined');
   }
 
   const maxRetries = 3;
@@ -457,13 +440,9 @@ export async function executeGraphQL(
       if (
         error instanceof PrintavoAuthenticationError ||
         error instanceof PrintavoNotFoundError ||
-        error instanceof PrintavoValidationError
+        error instanceof PrintavoValidationError ||
+        error instanceof PrintavoRateLimitError
       ) {
-        throw error;
-      }
-      
-      // If this is a rate limit error, we've already handled the retry logic
-      if (error instanceof PrintavoRateLimitError) {
         throw error;
       }
 
@@ -1162,3 +1141,5 @@ export const ProductsAPI = {
     }
   }
 };
+
+

@@ -178,6 +178,14 @@
   - Implemented request queuing to prevent rate limiting
   - Added intelligent retry logic with exponential backoff
 
+- ✅ Created and configured Printavo GraphQL MCP Server:
+  - Implemented tools for core read operations (get account, user, order, customer, contact, status, search, etc.).
+  - Implemented `update_status` mutation tool.
+  - Documented server setup and usage in `memory-bank/printavo-mcp-server.md`.
+  - Updated `techContext.md` with server details.
+  - Troubleshot connection and query issues. (Note: Server update issue persists).
+  - Added code for remaining single-entity and list query tools (unverified due to update issue).
+
 - ✅ Fixed test utilities and component testing:
   - Updated test utilities to properly include ToastProvider
   - Fixed import statements to use correct default/named imports
@@ -299,6 +307,7 @@
 - ~~Jest configuration issues prevent proper testing of React components~~ (Fixed)
 - ~~GraphQL operation name errors ("No operation named """) can occur in dashboard data loading~~ (Fixed with improved error handling and operation name extraction in dashboard charts and automatic operation name generation)
 - ~~Punycode module deprecation warning in tests~~ (Fixed with warning suppression script)
+- **Printavo MCP Server Update Issue:** The MCP host system fails to recognize new tools added to the server code, even after rebuilds and restarts. This blocks further verification and development of the MCP server. Requires investigation at the host level or a full system restart.
 
 **Next Steps:**
 - Write comprehensive tests for new components (error boundary, skeleton, global search)
@@ -307,7 +316,11 @@
 - Consider adding authentication to restrict access to the application
 - Implement webhooks for real-time order updates from Printavo
 - Add analytics to track usage patterns and identify common queries
-- Refine error boundary to provide more actionable error messages
+  - Refine error boundary to provide more actionable error messages
+- **Printavo MCP Server Enhancements:**
+  - Implement remaining query tools from API documentation.
+  - Implement mutation tools (e.g., `quoteCreate`, `invoiceCreate`, `customerCreate`, `contactCreate`, `lineItemCreate`, etc.).
+  - Add robust error handling (retries, timeouts) to MCP server API calls.
 
 **Notes:**
 - The Visual ID query feature now supports simpler "find order XXXX" queries in addition to more explicit formats.

@@ -251,3 +251,59 @@ export const QUERIES = {
     }
   `,
 };
+
+export const GET_ORDERS = `
+  query GetOrders($first: Int, $sortDescending: Boolean) {
+    orders(first: $first, sortDescending: $sortDescending) {
+      nodes {
+        id
+        visualId
+        // Other fields...
+      }
+    }
+  }
+`;
+
+export const GET_ORDER = `
+  query GetOrder($id: ID!) {
+    order(id: $id) {
+      id
+      visualId
+      // Other fields...
+    }
+  }
+`;
+
+export const SEARCH_ORDERS = `
+  query SearchOrders($query: String!) {
+    orders(query: $query, first: 10) {
+      nodes {
+        id
+        visualId
+        // Other fields...
+      }
+    }
+  }
+`;
+
+export const GET_CUSTOMERS = `
+  query GetCustomers($first: Int) {
+    customers(first: $first) {
+      nodes {
+        id
+        companyName
+        // Other fields...
+      }
+    }
+  }
+`;
+
+export const GET_CUSTOMER = `
+  query GetCustomer($id: ID!) {
+    customer(id: $id) {
+      id
+      companyName
+      // Other fields...
+    }
+  }
+`;

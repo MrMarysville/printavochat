@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchRecentOrders, fetchOrdersChartData, fetchRevenueChartData } from '@/lib/graphql-client';
 import { executeGraphQL } from '@/lib/printavo-api';
+import { printavoMcpClient } from '@/lib/printavo-mcp-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -75,23 +76,46 @@ export default function Dashboard() {
   // Modify the fetchOrders function to include fallback
   const fetchOrders = useCallback(async () => {
     try {
-      const result = await fetchRecentOrders();
+      logger.info('Fetching orders from Printavo API');
       
-      // If we got empty results (API error), use mock data instead
-      if (!result || result.length === 0) {
-        logger.warn('Received empty results from Printavo API, using fallback mock data');
+      try {
+        const result = await fetchRecentOrders();
+        
+        // If we got empty results (API error), use mock data instead
+        if (!result || result.length === 0) {
+          logger.warn('Received empty results from Printavo API, using fallback mock data');
+          return generateMockData();
+        }
+        
+        return result;
+      } catch (error) {
+        // Enhanced error handling
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Error fetching orders from Printavo API:', { 
+          error: errorMessage,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Show a non-intrusive toast notification about the API error
+        toast({
+          title: 'API Connection Issue',
+          description: 'Using sample data while we reconnect to Printavo',
+          variant: 'destructive',
+        });
+        
+        // Return mock data as fallback
         return generateMockData();
       }
-      
-      return result;
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      setError('Failed to load orders from Printavo API. Using mock data instead.');
+      // This should catch any errors in the mock data generation
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Dashboard error:', errorMessage);
+      setError('Failed to load orders data. Please refresh the page.');
       
-      // Return mock data as fallback
-      return generateMockData();
+      // Return empty array as last resort
+      return [];
     }
-  }, [generateMockData]);
+  }, [generateMockData, toast]);
 
   // Handle data changes
   const handleDataChanges = useCallback((newData: Order[], changes: DataChanges<Order>) => {
@@ -403,40 +427,137 @@ export default function Dashboard() {
       setChartError(null);
       
       try {
-        // Stagger API requests to avoid rate limiting
+        // Create mock chart data for fallback
+        const mockOrdersChartData = {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+          datasets: [{
+            label: 'Orders (Fallback)',
+            data: [5, 8, 12, 9, 11, 10],
+            color: 'blue'
+          }]
+        };
+        
+        const mockRevenueChartData = {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+          datasets: [{
+            label: 'Revenue $ (Fallback)',
+            data: [1200, 1800, 2400, 1900, 2100, 2500],
+            color: 'green'
+          }]
+        };
+
+        // Get orders and create chart data
         let ordersData;
         let revenueData;
         
         try {
-          // Make sure we're explicitly passing operation names in both API calls
-          ordersData = await fetchOrdersChartData();
-          // Add a small delay between requests to reduce chance of rate limiting
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Try using the MCP client to search for orders (last 100 orders)
+          const mcpResult = await printavoMcpClient.searchOrders("", 100);
+          logger.info('Using MCP client for chart data');
+          
+          if (mcpResult.success && mcpResult.data && Array.isArray(mcpResult.data)) {
+            // Process orders for chart data
+            const orders = mcpResult.data;
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            // Get data for the last 6 months
+            const now = new Date();
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            
+            // Create maps for order counts and revenue by month
+            const ordersByMonth = {};
+            const revenueByMonth = {};
+            
+            for (let i = 0; i < 6; i++) {
+              const date = new Date(now);
+              date.setMonth(date.getMonth() - i);
+              const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+              ordersByMonth[monthKey] = { 
+                count: 0, 
+                label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`
+              };
+              revenueByMonth[monthKey] = { 
+                total: 0, 
+                label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`
+              };
+            }
+            
+            // Fill in the actual data
+            orders.forEach(order => {
+              try {
+                if (!order.createdAt) return;
+                
+                const date = new Date(order.createdAt);
+                // Only include orders from the last 6 months
+                if (date >= sixMonthsAgo) {
+                  const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+                  if (ordersByMonth[monthKey]) {
+                    ordersByMonth[monthKey].count++;
+                    // Add to revenue if we have a total
+                    if (order.total) {
+                      const total = typeof order.total === 'string' ? parseFloat(order.total) : order.total;
+                      revenueByMonth[monthKey].total += total || 0;
+                    }
+                  }
+                }
+              } catch (e) {
+                logger.warn(`Error processing order date: ${e}`);
+              }
+            });
+            
+            // Sort by date (oldest to newest)
+            const sortedMonths = Object.keys(ordersByMonth)
+              .sort((a, b) => {
+                const [yearA, monthA] = a.split('-').map(Number);
+                const [yearB, monthB] = b.split('-').map(Number);
+                return (yearA - yearB) || (monthA - monthB);
+              });
+            
+            // Convert to chart format - orders
+            const orderLabels = sortedMonths.map(key => ordersByMonth[key].label);
+            const orderChartData = sortedMonths.map(key => ordersByMonth[key].count);
+            
+            // Convert to chart format - revenue
+            const revenueLabels = sortedMonths.map(key => revenueByMonth[key].label);
+            const revenueChartData = sortedMonths.map(key => revenueByMonth[key].total);
+            
+            // Create chart data objects
+            ordersData = {
+              labels: orderLabels,
+              datasets: [{
+                label: 'Orders',
+                data: orderChartData,
+                color: 'blue'
+              }]
+            };
+            
+            revenueData = {
+              labels: revenueLabels,
+              datasets: [{
+                label: 'Revenue ($)',
+                data: revenueChartData,
+                color: 'green'
+              }]
+            };
+          } else {
+            // Fall back to default chart data
+            throw new Error("MCP client returned invalid data");
+          }
         } catch (err) {
-          logger.error('Error loading orders chart data, using fallback:', err);
-          ordersData = {
-            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-            datasets: [{
-              label: 'Orders (Fallback)',
-              data: [5, 8, 12, 9, 11, 10],
-              color: 'blue'
-            }]
-          };
-        }
-        
-        try {
-          // Make sure we're explicitly passing operation names
-          revenueData = await fetchRevenueChartData();
-        } catch (err) {
-          logger.error('Error loading revenue chart data, using fallback:', err);
-          revenueData = {
-            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-            datasets: [{
-              label: 'Revenue $ (Fallback)',
-              data: [1200, 1800, 2400, 1900, 2100, 2500],
-              color: 'green'
-            }]
-          };
+          logger.warn('MCP client chart data error, trying direct API:', err);
+          
+          try {
+            // Fall back to using direct API calls
+            ordersData = await fetchOrdersChartData();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Add delay
+            revenueData = await fetchRevenueChartData();
+          } catch (directErr) {
+            logger.error('Direct API chart data error, using fallback:', directErr);
+            // Use mock data if both methods fail
+            ordersData = mockOrdersChartData;
+            revenueData = mockRevenueChartData;
+          }
         }
         
         setOrdersChartData(ordersData);
