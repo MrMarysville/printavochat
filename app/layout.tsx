@@ -32,6 +32,22 @@ export default function RootLayout({
             <ChatWidget />
           </div>
           <Toaster />
+          <footer className="py-4 border-t mt-auto">
+            <div className="container mx-auto flex justify-between items-center">
+              <div className="text-sm text-gray-500">
+                &copy; {new Date().getFullYear()} Printavo Integration
+              </div>
+              {process.env.NODE_ENV === 'development' && (
+                <a 
+                  href="/admin/debug" 
+                  className="text-xs text-gray-400 hover:text-gray-600 transition"
+                  title="Error Monitoring Dashboard"
+                >
+                  Debug Mode
+                </a>
+              )}
+            </div>
+          </footer>
         </ToastProvider>
       </body>
     </html>

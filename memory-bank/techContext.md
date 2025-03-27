@@ -73,12 +73,63 @@
     -   Comprehensive logging throughout the API client code.
     -   Error response analysis to determine the nature of failures.
 
-**Technical Constraints:**
+**API Layer:**
+- **EnhancedAPIClient:**
+  - Intelligent request queuing
+  - Rate limit handling
+  - Request staggering
+  - Exponential backoff
+  - TTL-based caching
+  - Fallback mechanisms
+  - Error recovery
+  - Comprehensive logging
 
--   **Printavo API Rate Limits:** Be mindful of Printavo API rate limits and implement appropriate error handling and retry mechanisms.
--   **OpenAI API Costs:** Usage of OpenAI API incurs costs. Monitor usage and optimize prompts to minimize expenses.
--   **Data Security:** Ensure secure storage and handling of Printavo API credentials and user data.
--   **Real-time Chat Limitations:**  Current implementation might not support true real-time chat features like presence and typing indicators without additional services (e.g., WebSockets).
+- **API Services:**
+  - OrdersAPI: Order management operations
+  - QuotesAPI: Quote and invoice operations
+  - StatusesAPI: Status management operations
+  - Each service implements:
+    - Proper error handling
+    - Type safety
+    - Request validation
+    - Response normalization
+
+- **Request Queue:**
+  - Manages API request flow
+  - Prevents rate limiting
+  - Implements staggered requests
+  - Handles retries with exponential backoff
+  - Respects API rate limits
+  - Optimizes request patterns
+
+- **Cache Layer:**
+  - TTL-based caching
+  - Memory optimization
+  - Cache invalidation
+  - Request deduplication
+  - Response normalization
+
+- **Error Handling:**
+  - Specific error types for different scenarios
+  - Retry strategies
+  - Fallback mechanisms
+  - Comprehensive logging
+  - User-friendly error messages
+
+**Technical Constraints:**
+- **API Rate Limits:**
+  - Implemented request queuing and staggering
+  - Added exponential backoff for retries
+  - Enhanced caching to reduce API calls
+  - Added request deduplication
+- **Data Consistency:**
+  - Proper cache invalidation
+  - Response normalization
+  - Type safety across services
+- **Error Recovery:**
+  - Multiple fallback mechanisms
+  - Intelligent retry logic
+  - Comprehensive error tracking
 
 **Dependencies:**
 
@@ -91,3 +142,19 @@
 -   **Monitoring and Logging:** Implement robust monitoring and logging to track application health and debug issues.
 -   **Testing:** Write comprehensive unit and integration tests to ensure code quality and prevent regressions.
 -   **Deployment:** Define deployment strategy and environment (e.g., Vercel, AWS, Docker).
+
+## External Service Integrations
+
+### SanMar MCP Server (`sanmar-mcp-server`)
+- **Purpose:** Provides tools to interact with the SanMar API (both Standard and PromoStandards) via SOAP.
+- **Location:** `C:\Users\King\Documents\Cline\MCP\sanmar-mcp-server`
+- **Technology:** Node.js, `soap` package for SOAP communication, `@modelcontextprotocol/sdk` for MCP implementation.
+- **Setup:** Configured in `cline_mcp_settings.json` with necessary environment variables (SANMAR_CUSTOMER_NUMBER, SANMAR_USERNAME, SANMAR_PASSWORD).
+- **Status:** Installed and running. Provides a wide range of tools for product info, inventory, pricing, orders, invoices, etc.
+
+### SanMar FTP MCP Server (`sanmar-ftp-mcp-server`)
+- **Purpose:** Downloads files from the SanMar FTP server.
+- **Location:** `C:\Users\King\Documents\Cline\MCP\sanmar-ftp-mcp-server`
+- **Technology:** Node.js, `ssh2` package for SFTP communication, `@modelcontextprotocol/sdk` for MCP implementation.
+- **Setup:** To be configured in `cline_mcp_settings.json` with necessary environment variables (SANMAR_FTP_HOST, SANMAR_FTP_USERNAME, SANMAR_FTP_PASSWORD).
+- **Status:** Not yet running.

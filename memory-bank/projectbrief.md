@@ -6,6 +6,7 @@
 - **Stability Improvements:** Review the codebase to identify and fix potential stability issues, including error handling, data validation, and performance bottlenecks.
 - **Query by Visual ID:** Implement a new feature that allows users to query Printavo orders using their visual IDs. This will require modifications to the API and potentially the UI.
 - **Documentation:** Ensure all changes and improvements are properly documented in the memory bank.
+- **SanMar Integration:** Integrate with SanMar's API to access product information, inventory, and order data.
 
 **Key Deliverables:**
 - Stable and reliable Printavo Chat application.
@@ -16,10 +17,13 @@
 - No crashes or errors during normal operation.
 - Visual ID query feature works as expected.
 - Codebase is well-documented and maintainable.
+- SanMar integration is fully functional.
 
 **Initial Steps:**
 1. **Memory Bank Setup:** Create and populate core memory bank files.
 2. **Codebase Review:** Analyze existing code for stability issues and areas for improvement.
 3. **Visual ID Implementation:** Design and implement the visual ID query feature.
 4. **Testing:** Thoroughly test all functionalities, including stability and visual ID query.
-5. **Documentation Update:** Update memory bank with all changes and findings.
+5. **SanMar Integration:** Implement the SanMar integration.
+6. **Testing:** Thoroughly test all functionalities, including stability, visual ID query, and SanMar integration.
+7. **Documentation Update:** Update memory bank with all changes and findings.

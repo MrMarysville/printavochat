@@ -174,13 +174,16 @@ describe('Visual ID Utilities', () => {
     it('returns exact match when exactMatchOnly is true', async () => {
       // Mock getOrderByExactVisualId to return a single order
       const exactOrder = mockOrderData.invoices.edges[0].node;
-      jest.spyOn(global, 'getOrderByExactVisualId' as any).mockResolvedValue(exactOrder);
+      const getOrderByExactVisualIdMock = jest.spyOn(require('../lib/visual-id-utils'), 'getOrderByExactVisualId')
+        .mockResolvedValue(exactOrder);
 
       const result = await searchByVisualId('1234', { exactMatchOnly: true });
       
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(exactOrder);
       expect(cache.set).toHaveBeenCalled();
+      
+      getOrderByExactVisualIdMock.mockRestore();
     });
 
     it('returns filtered results when includeSimilar is false', async () => {

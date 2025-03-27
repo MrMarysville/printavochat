@@ -1,11 +1,12 @@
 import { GraphQLClient } from 'graphql-request';
 import { logger } from './logger';
 import { executeGraphQL, checkApiConnection } from './printavo-api';
+import { getApiEndpoint, getApiCredentials, withLock } from './utils/api-utils';
 
 const isBrowser = typeof window !== 'undefined';
-const endpoint = process.env.NEXT_PUBLIC_PRINTAVO_API_URL || 'https://www.printavo.com/api/v2';
-const API_TOKEN = process.env.NEXT_PUBLIC_PRINTAVO_TOKEN || '';
-const API_EMAIL = process.env.NEXT_PUBLIC_PRINTAVO_EMAIL || '';
+// Get the API URL using our utility function
+const endpoint = getApiEndpoint();
+const { email: API_EMAIL, token: API_TOKEN } = getApiCredentials();
 
 // Store API connection status
 let apiConnectionStatus = {
@@ -27,55 +28,9 @@ const client = new GraphQLClient(endpoint, {
 
 // Check API connection status, with cache (only check once every 5 minutes)
 export const checkConnection = async (forceCheck = false) => {
-  const now = Date.now();
-  const fiveMinutes = 5 * 60 * 1000;
-  
-  // Return cached status if we checked recently and not forcing a fresh check
-  if (!forceCheck && apiConnectionStatus.checked && (now - apiConnectionStatus.lastCheck) < fiveMinutes) {
-    logger.debug('Using cached API connection status:', apiConnectionStatus.connected ? 'Connected' : 'Not connected');
-    return apiConnectionStatus;
-  }
-  
-  try {
-    logger.info('Checking API connection status...');
-    const response = await fetch('/api/health');
-    
-    if (!response.ok) {
-      logger.error(`API health check failed: ${response.status} ${response.statusText}`);
-      apiConnectionStatus = {
-        connected: false,
-        checked: true,
-        account: null,
-        lastCheck: now
-      };
-      return apiConnectionStatus;
-    }
-    
-    const result = await response.json();
-    
-    // Update the connection status
-    apiConnectionStatus = {
-      connected: result.printavoApi?.connected || false,
-      checked: true,
-      account: result.printavoApi?.account || null,
-      lastCheck: now
-    };
-    
-    logger.info(`API connection check result: ${apiConnectionStatus.connected ? 'Connected' : 'Not connected'}`);
-    return apiConnectionStatus;
-  } catch (error) {
-    logger.error('Error checking API connection:', error);
-    
-    // Update status to reflect the error
-    apiConnectionStatus = {
-      connected: false,
-      checked: true,
-      account: null,
-      lastCheck: now
-    };
-    
-    return apiConnectionStatus;
-  }
+  return withLock('api-connection-check', async () => {
+    return checkApiConnection();
+  });
 };
 
 // Custom error types with detailed error information
@@ -292,7 +247,20 @@ export const fetchTasks = async () => {
     }
   `;
   try {
+    // Validate operation name
+    if (!operationName || operationName.trim() === '') {
+      logger.error('Missing operation name for fetchTasks');
+      return [];
+    }
+    
     const data = await executeGraphQL(query, {}, operationName);
+    
+    // Validate response
+    if (!data || !data.tasks || !data.tasks.edges) {
+      logger.warn('Empty or invalid response from Printavo API for tasks');
+      return [];
+    }
+    
     return data.tasks?.edges?.map((edge: { node: any }) => edge.node) || [];
   } catch (error) {
     logger.error('Error fetching tasks:', error);
@@ -305,15 +273,23 @@ export const fetchTasks = async () => {
 async function executeClientGraphQL(
   query: string, 
   variables: Record<string, any> = {}, 
-  operationName: string
+  operationName: string = ""
 ): Promise<any> {
   try {
+    // Fix: Extract operation name from query if not provided
     if (!operationName || operationName.trim() === '') {
-      console.error('[GraphQL] Operation name is required', {
-        error: 'No operation name provided',
-        query: query.substring(0, 100)
-      });
-      throw new Error('GraphQL operation name is required and cannot be empty');
+      // Try to extract operation name from query
+      const operationMatch = query.match(/query\s+([A-Za-z0-9_]+)/);
+      if (operationMatch && operationMatch[1]) {
+        operationName = operationMatch[1];
+        console.log(`[GraphQL] Extracted operation name: ${operationName}`);
+      } else {
+        console.error('[GraphQL] No operation name provided and could not extract from query', {
+          error: 'No operation name provided',
+          query: query.substring(0, 100)
+        });
+        throw new Error('GraphQL operation name is required and cannot be empty');
+      }
     }
     
     // Log the request attempt in development
@@ -365,7 +341,14 @@ export const fetchRecentOrders = async () => {
   `;
   
   try {
-    const data = await executeClientGraphQL(query, {}, operationName);
+    // Validate operation name
+    if (!operationName || operationName.trim() === '') {
+      logger.error('Missing operation name for fetchRecentOrders');
+      return [];
+    }
+    
+    // Make sure we're passing the operation name explicitly 
+    const data = await executeGraphQL(query, {}, operationName);
     
     // Handle empty or invalid response
     if (!data || !data.invoices || !data.invoices.edges) {
@@ -467,7 +450,23 @@ export const fetchOrdersChartData = async (): Promise<ChartData> => {
   `;
   
   try {
-    const response = await executeClientGraphQL(query, {}, operationName);
+    // Make sure we're passing the operation name explicitly
+    if (!operationName || operationName.trim() === '') {
+      logger.error('Missing operation name for fetchOrdersChartData');
+      return {
+        labels: ['Error'],
+        datasets: [
+          {
+            label: 'Error: Missing Operation Name',
+            data: [0],
+            color: 'red'
+          }
+        ]
+      };
+    }
+    
+    // Using executeGraphQL with explicit operation name
+    const response = await executeGraphQL(query, {}, operationName);
     
     // Check if we received valid data
     if (!response || !response.invoices || !response.invoices.edges) {
@@ -582,7 +581,23 @@ export const fetchRevenueChartData = async (): Promise<ChartData> => {
   `;
   
   try {
-    const response = await executeClientGraphQL(query, {}, operationName);
+    // Validate operation name
+    if (!operationName || operationName.trim() === '') {
+      logger.error('Missing operation name for fetchRevenueChartData');
+      return {
+        labels: ['Error'],
+        datasets: [
+          {
+            label: 'Error: Missing Operation Name',
+            data: [0],
+            color: 'red'
+          }
+        ]
+      };
+    }
+    
+    // Make sure we're passing the operation name explicitly
+    const response = await executeGraphQL(query, {}, operationName);
     
     // Check if we received valid data
     if (!response || !response.invoices || !response.invoices.edges) {

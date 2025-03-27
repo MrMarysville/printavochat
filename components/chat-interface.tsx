@@ -14,31 +14,14 @@ import { ProductGallery } from './rich-messages/ProductGallery';
 import { DynamicForm } from './rich-messages/DynamicForm';
 import { VoiceControl } from './VoiceControl';
 import ErrorBoundary from './error-boundary';
-
-type MessageType = 'text' | 'file' | 'order' | 'product' | 'form' | 'dashboard';
-
-interface ChatFile {
-  id: string;
-  name: string;
-  url: string;
-  type: string;
-  size: number;
-}
-
-interface RichMessageData {
-  type: 'order' | 'product' | 'form' | 'dashboard';
-  content: any;
-}
-
-interface ChatMessageType {
-  id: string;
-  content: string;
-  role: 'user' | 'assistant' | 'system';
-  timestamp: string;
-  files?: ChatFile[];
-  richData?: RichMessageData;
-  messageType: MessageType;
-}
+import { 
+  ChatMessage, 
+  ChatFile, 
+  RichMessageData, 
+  MessageRole, 
+  MessageType,
+  getMessageStyles
+} from '@/lib/types/chat';
 
 // Component for displaying file attachments
 const FileAttachment = ({ file }: { file: ChatFile }) => {
@@ -110,13 +93,13 @@ const RichFormMessage = ({ formConfig, onSubmit }: { formConfig: any, onSubmit: 
 };
 
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<ChatMessageType[]>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
       content: 'Hello! I can help you with Printavo operations. What would you like to do?',
-      role: 'assistant',
+      role: MessageRole.ASSISTANT,
       timestamp: new Date().toISOString(),
-      messageType: 'text'
+      messageType: MessageType.TEXT
     },
   ]);
   const [input, setInput] = useState('');
@@ -162,12 +145,12 @@ export default function ChatInterface() {
     if (!input.trim()) return;
 
     // Add user message to chat
-    const userMessage: ChatMessageType = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       content: input,
-      role: 'user',
+      role: MessageRole.USER,
       timestamp: new Date().toISOString(),
-      messageType: 'text'
+      messageType: MessageType.TEXT
     };
     
     setMessages(prevMessages => [...prevMessages, userMessage]);
@@ -179,12 +162,12 @@ export default function ChatInterface() {
       const response = await processMessage(input);
       
       // Add assistant's response to chat
-      const assistantMessage: ChatMessageType = {
+      const assistantMessage: ChatMessage = {
         id: Date.now().toString() + '-assistant',
         content: response.message,
-        role: 'assistant',
+        role: MessageRole.ASSISTANT,
         timestamp: new Date().toISOString(),
-        messageType: 'text',
+        messageType: MessageType.TEXT,
         richData: response.richData
       };
       
@@ -193,14 +176,14 @@ export default function ChatInterface() {
       logger.error('Chat interface error:', error);
       
       // Handle errors
-      const errorMessage: ChatMessageType = {
+      const errorMessage: ChatMessage = {
         id: Date.now().toString() + '-error',
         content: error instanceof Error 
           ? `Error: ${error.message}` 
           : 'Sorry, I encountered an error processing your request.',
-        role: 'system',
+        role: MessageRole.SYSTEM,
         timestamp: new Date().toISOString(),
-        messageType: 'text'
+        messageType: MessageType.TEXT
       };
       
       setMessages(prevMessages => [...prevMessages, errorMessage]);
@@ -240,7 +223,7 @@ export default function ChatInterface() {
                 {
                   id: Date.now().toString(),
                   content: inputMessage,
-                  role: 'user',
+                  role: MessageRole.USER,
                   timestamp: new Date().toISOString(),
                 }
               ],
@@ -274,7 +257,7 @@ export default function ChatInterface() {
             {
               id: Date.now().toString(),
               content: inputMessage,
-              role: 'user',
+              role: MessageRole.USER,
               timestamp: new Date().toISOString(),
             },
           ],
@@ -321,12 +304,12 @@ export default function ChatInterface() {
       const data = await response.json();
       
       // Create message with file attachments
-      const fileMessage: ChatMessageType = {
+      const fileMessage: ChatMessage = {
         id: Date.now().toString(),
         content: files.length === 1 
           ? `I've uploaded a file: ${files[0].name}` 
           : `I've uploaded ${files.length} files`,
-        role: 'user',
+        role: MessageRole.USER,
         timestamp: new Date().toISOString(),
         files: data.files.map((file: any) => ({
           id: file.fileName,
@@ -335,7 +318,7 @@ export default function ChatInterface() {
           type: file.type,
           size: file.size
         })),
-        messageType: 'file'
+        messageType: MessageType.FILE
       };
       
       setMessages(prev => [...prev, fileMessage]);
@@ -361,7 +344,7 @@ export default function ChatInterface() {
     }
   };
   
-  const handleUploadedFiles = async (fileMessage: ChatMessageType) => {
+  const handleUploadedFiles = async (fileMessage: ChatMessage) => {
     setIsLoading(true);
     
     try {
@@ -384,12 +367,12 @@ export default function ChatInterface() {
       const data = await response.json();
       
       // Add assistant's response
-      const assistantMessage: ChatMessageType = {
+      const assistantMessage: ChatMessage = {
         id: Date.now().toString() + '-assistant',
         content: data.message,
-        role: 'assistant',
+        role: MessageRole.ASSISTANT,
         timestamp: new Date().toISOString(),
-        messageType: 'text',
+        messageType: MessageType.TEXT,
         richData: data.richData
       };
       
@@ -397,111 +380,93 @@ export default function ChatInterface() {
     } catch (error) {
       logger.error('Error processing uploaded files:', error);
       
-      const errorMessage: ChatMessageType = {
+      const errorMessage: ChatMessage = {
         id: Date.now().toString() + '-error',
         content: error instanceof Error 
-          ? `Error processing files: ${error.message}` 
+          ? `Error processing uploaded files: ${error.message}` 
           : 'Sorry, I encountered an error processing your files.',
-        role: 'system',
+        role: MessageRole.SYSTEM,
         timestamp: new Date().toISOString(),
-        messageType: 'text'
+        messageType: MessageType.TEXT
       };
       
       setMessages(prevMessages => [...prevMessages, errorMessage]);
+      
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Format timestamp consistently
   const formatTimestamp = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '';
+    }
   };
 
-  // Render different message types
-  const renderMessage = (message: ChatMessageType) => {
-    try {
-      switch (message.messageType) {
-        case 'file':
-          return (
-            <div className="flex flex-col space-y-2">
-              <p className="text-sm">{message.content}</p>
-              <div className="flex flex-wrap gap-2">
-                {message.files?.map(file => (
-                  <FileAttachment key={file.id} file={file} />
-                ))}
-              </div>
-            </div>
-          );
+  const renderMessage = (message: ChatMessage) => {
+    // Get the style information based on message role
+    const styles = getMessageStyles(message.role);
+    
+    return (
+      <div
+        key={message.id}
+        className={`p-3 rounded-lg max-w-[80%] ${styles.containerClass} mb-2`}
+      >
+        <div className="flex items-center mb-1">
+          <span className="text-xs font-semibold mr-1">{styles.name}</span>
+          <span className="text-xs text-gray-500">{formatTimestamp(message.timestamp)}</span>
+        </div>
         
-        case 'text':
-          // Check if there's rich data to render
-          if (message.richData) {
-            try {
-              switch (message.richData.type) {
-                case 'order':
-                  return (
-                    <div className="flex flex-col space-y-3">
-                      <p className="text-sm">{message.content}</p>
-                      <RichOrderMessage 
-                        order={message.richData.content} 
-                        onViewDetails={() => console.log(`View order: ${message.richData?.content.id}`)}
-                      />
-                    </div>
-                  );
-                  
-                case 'product':
-                  return (
-                    <div className="flex flex-col space-y-3">
-                      <p className="text-sm">{message.content}</p>
-                      <RichProductMessage products={message.richData.content} />
-                    </div>
-                  );
-                
-                case 'form':
-                  return (
-                    <div className="flex flex-col space-y-3">
-                      <p className="text-sm">{message.content}</p>
-                      <RichFormMessage 
-                        formConfig={message.richData.content} 
-                        onSubmit={(data) => console.log('Form submitted:', data)}
-                      />
-                    </div>
-                  );
-                  
-                default:
-                  return <p className="text-sm">{message.content}</p>;
-              }
-            } catch (error) {
-              logger.error('Error rendering rich message:', error);
-              return (
-                <div className="flex flex-col space-y-2">
-                  <p className="text-sm">{message.content}</p>
-                  <p className="text-xs text-red-500">Error displaying rich content</p>
-                </div>
-              );
-            }
-          } else {
-            // Regular text message
-            return (
-              <p className="text-sm whitespace-pre-wrap">
-                {message.content}
-              </p>
-            );
-          }
-          
-        default:
-          return <p className="text-sm">{message.content}</p>;
-      }
-    } catch (error) {
-      logger.error('Error rendering message:', error);
-      return <p className="text-sm text-red-500">Error displaying message</p>;
-    }
+        <div className={`text-sm ${styles.textClass}`}>
+          {message.content}
+        </div>
+        
+        {/* Display file attachments if present */}
+        {message.files && message.files.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {message.files.map(file => (
+              <FileAttachment key={file.id} file={file} />
+            ))}
+          </div>
+        )}
+        
+        {/* Display rich message content if present */}
+        {message.richData && (
+          <div className="mt-3">
+            {message.richData.type === MessageType.ORDER && (
+              <RichOrderMessage 
+                order={message.richData.content} 
+                onViewDetails={() => {
+                  // Handle view details
+                }}
+              />
+            )}
+            
+            {message.richData.type === MessageType.PRODUCT && (
+              <RichProductMessage products={message.richData.content} />
+            )}
+            
+            {message.richData.type === MessageType.FORM && (
+              <RichFormMessage 
+                formConfig={message.richData.content} 
+                onSubmit={(data) => {
+                  // Handle form submission
+                  console.log('Form submitted:', data);
+                }}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -523,13 +488,13 @@ export default function ChatInterface() {
             <div 
               key={message.id}
               className={`flex flex-col ${
-                message.role === 'user' ? 'items-end' : 'items-start'
+                message.role === MessageRole.USER ? 'items-end' : 'items-start'
               }`}
             >
               <div className={`flex flex-col max-w-[85%] rounded-lg p-3 ${
-                message.role === 'user' 
+                message.role === MessageRole.USER 
                   ? 'bg-primary text-primary-foreground'
-                  : message.role === 'system'
+                  : message.role === MessageRole.SYSTEM
                     ? 'bg-destructive text-destructive-foreground'
                     : 'bg-muted'
               }`}>

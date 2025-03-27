@@ -31,7 +31,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { query, variables, operationName } = body;
+    const { query, variables } = body;
+    let { operationName } = body;
 
     // Validate required fields
     if (!query) {
@@ -50,10 +51,18 @@ export async function POST(request: Request) {
     // Validate operation name is provided and not empty
     if (!operationName || operationName.trim() === '') {
       logger.warn('Missing or empty operation name in GraphQL request');
-      return NextResponse.json(
-        { error: 'Operation name is required and cannot be empty' },
-        { status: 400 }
-      );
+      
+      // Try to extract from query
+      const operationMatch = query.match(/\b(?:query|mutation)\s+([A-Za-z0-9_]+)\b/i);
+      if (operationMatch && operationMatch[1]) {
+        operationName = operationMatch[1];
+        logger.info(`Extracted operation name from query: ${operationName}`);
+      } else {
+        // Generate a hash-based operation name
+        const queryHash = Math.abs(hashString(query)).toString(16).substring(0, 8);
+        operationName = `GraphQLQuery_${queryHash}`;
+        logger.warn(`Generated fallback operation name for query: ${operationName}`);
+      }
     }
 
     logger.info('Processing GraphQL request', { operationName });
@@ -122,4 +131,18 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+// Simple string hash function
+export function hashString(str: string): number {
+  let hash = 0;
+  if (str.length === 0) return hash;
+  
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  
+  return hash;
 } 

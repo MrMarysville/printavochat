@@ -1,0 +1,66 @@
+# GraphQL Query Best Practices
+
+1. Always include an operation name in GraphQL queries.
+   ```
+   query GetOrderDetails($id: ID!) { ... }
+   ```
+   Not:
+   ```
+   query { ... }
+   ```
+
+2. Use schema validation to detect API changes proactively.
+   - Implement schema validation at application startup
+   - Compare actual schema against expected schema
+   - Log warnings when incompatibilities are found
+
+3. Handle nested data structures with recursive extraction.
+   - Use recursive functions to extract nested data
+   - Flatten complex structures for easier consumption
+   - Preserve contextual information during extraction
+
+# Testing Best Practices
+
+1. Use warning suppression for third-party dependency warnings.
+   - Implement targeted warning suppression
+   - Only suppress specific known warnings
+   - Keep all other warnings visible
+
+2. Add the suppression script to all test commands in package.json:
+   ```json
+   "test": "node scripts/suppress-warnings.js && jest"
+   ```
+
+3. Design tests to be resilient to API changes:
+   - Mock external API responses
+   - Use schema validation in tests
+   - Handle rate limiting in tests
+
+# Chat Command Parsing
+
+1. Use multiple regex patterns to handle different ways users might express the same intent:
+   - "25 shirts at $18 each with red logo"
+   - "25 shirts for $18 each with blue design"
+   - "25 shirts, $18 each, blue logo"
+
+2. Provide clear, informative responses when commands are not understood.
+
+3. Support editing and removal of items in conversational interfaces.
+
+# Error Handling Strategy
+
+1. Implement exponential backoff for rate limiting.
+   - Start with a small initial delay
+   - Double the delay on consecutive errors
+   - Cap the maximum delay
+   - Reset delay on successful requests
+
+2. Add specific handling for GraphQL operation name errors.
+   - Extract operation names from queries when possible
+   - Generate fallback operation names when needed
+   - Add operation names to queries that don't have them
+
+3. Use schema validation to prevent runtime errors due to API changes.
+   - Check for missing fields
+   - Validate field types
+   - Detect new fields that might be useful 

@@ -57,6 +57,8 @@ export class SmartPoller<T> {
   private lastError: Error | null = null;
   private failedAttempts: number = 0;
   private maxRetries: number = 3;
+  private consecutiveErrors: number = 0;
+  private currentBackoff: number = 0;
   
   constructor(options: PollingOptions<T>) {
     this.options = {
@@ -81,7 +83,7 @@ export class SmartPoller<T> {
     }
     
     this.isPolling = true;
-    this.poll();
+    this.poll(); // Start polling immediately
     logger.info(`Started smart polling with interval ${this.currentInterval}ms`);
   }
   
@@ -119,13 +121,41 @@ export class SmartPoller<T> {
    * Force an immediate poll
    */
   public async pollNow(): Promise<DataChanges<T>> {
-    return await this.doPoll();
+    // Set isPolling temporarily to true to ensure doPoll processes correctly
+    const wasPolling = this.isPolling;
+    this.isPolling = true;
+    
+    try {
+      const newData = await this.options.fetchFn();
+      const changes = this.detectChanges(newData);
+      
+      // Always call onChanges when pollNow is directly called
+      this.options.onChanges(newData, changes);
+      
+      return changes;
+    } finally {
+      // Restore previous polling state if we changed it
+      if (!wasPolling) {
+        this.isPolling = false;
+      }
+    }
   }
   
   /**
    * Internal polling function
    */
   private async doPoll(): Promise<DataChanges<T>> {
+    // Don't poll if disabled
+    if (!this.isPolling) {
+      return {
+        hasChanges: false,
+        newItems: [],
+        removedItems: [],
+        changedItems: [],
+        unchangedItems: []
+      };
+    }
+
     try {
       const now = Date.now();
       const timeSinceLastPoll = now - this.lastPollTime;
@@ -161,10 +191,23 @@ export class SmartPoller<T> {
         }
       }
       
-      // Call the onChange handler if there are changes
-      if (changes.hasChanges || this.lastData?.length === 0) {
+      // Call onChanges for initial data load or when there are changes
+      if (!this.lastData || changes.hasChanges) {
         this.options.onChanges(newData, changes);
       }
+      
+      // Always update last data
+      this.lastData = newData;
+      this.lastDataMap = new Map<string, T>();
+      this.lastFingerprintMap = new Map<string, any>();
+      for (const item of newData) {
+        const id = this.options.idExtractor!(item);
+        this.lastDataMap.set(id, item);
+        this.lastFingerprintMap.set(id, this.options.fingerprintExtractor!(item));
+      }
+      
+      // Reset errors counter on success
+      this.consecutiveErrors = 0;
       
       return changes;
     } catch (error) {
@@ -172,14 +215,32 @@ export class SmartPoller<T> {
       this.lastError = error as Error;
       
       logger.error('Error during smart polling:', error);
-      if (this.options.onError && error instanceof Error) {
-        this.options.onError(error);
+      
+      // Special handling for GraphQL "No operation named" errors
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('No operation named')) {
+        console.error('GraphQL operation name error in SmartPoller, will retry with backoff', error);
+        
+        // Don't call onError for this specific type of error since we're handling it internally
+        // Allow the system to retry with backoff
+      } else {
+        // For other errors, call the onError callback
+        if (this.options.onError && error instanceof Error) {
+          this.options.onError(error);
+        }
       }
       
-      if (this.failedAttempts >= this.maxRetries) {
-        // Reset polling if we've failed too many times
-        this.stop();
-        // Don't restart automatically as this could cause more issues
+      // Apply exponential backoff if enabled
+      if (this.options.enableBackoff && this.consecutiveErrors > 1) {
+        const maxBackoff = this.options.maxBackoffInterval || 5 * 60 * 1000; // 5 minutes max
+        
+        // Calculate new backoff (exponential with jitter)
+        this.currentBackoff = Math.min(
+          this.currentBackoff * 2 * (0.8 + Math.random() * 0.4), // Add 20% jitter
+          maxBackoff
+        );
+        
+        console.log(`SmartPoller: Backoff set to ${this.currentBackoff}ms after ${this.consecutiveErrors} consecutive errors`);
       }
       
       return {
@@ -189,26 +250,34 @@ export class SmartPoller<T> {
         changedItems: [],
         unchangedItems: this.lastData || []
       };
+    } finally {
+      // Schedule the next poll
+      this.scheduleNextPoll();
     }
   }
   
   /**
    * Schedule the next poll
    */
-  private poll(): void {
+  private scheduleNextPoll(): void {
     if (!this.isPolling) {
-      return; // Don't poll if we've been stopped
+      return; // Don't schedule if we've been stopped
     }
     
-    this.doPoll().finally(() => {
-      if (this.isPolling) {
-        // Clean up any existing timer first to prevent leaks
-        if (this.timer) {
-          clearTimeout(this.timer);
-        }
-        this.timer = setTimeout(() => this.poll(), this.currentInterval);
-      }
-    });
+    // Clean up any existing timer first to prevent leaks
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+    
+    // Use the currentBackoff if we have consecutive errors, otherwise use the normal interval
+    const interval = this.consecutiveErrors > 1 && this.currentBackoff ? this.currentBackoff : this.currentInterval;
+    
+    this.timer = setTimeout(() => this.poll(), interval);
+    
+    // Log if we're using backoff
+    if (this.consecutiveErrors > 1 && this.currentBackoff) {
+      logger.debug(`Next poll scheduled with backoff in ${interval}ms due to errors`);
+    }
   }
   
   /**
@@ -226,6 +295,22 @@ export class SmartPoller<T> {
       const id = idExtractor(item);
       newDataMap.set(id, item);
       newFingerprintMap.set(id, fingerprintExtractor(item));
+    }
+    
+    // If this is the initial data load (no previous data), treat all items as unchanged
+    if (!this.lastData) {
+      // Update state maps before returning
+      this.lastData = newData;
+      this.lastDataMap = newDataMap;
+      this.lastFingerprintMap = newFingerprintMap;
+      
+      return {
+        hasChanges: false,
+        newItems: [],
+        removedItems: [],
+        changedItems: [],
+        unchangedItems: newData
+      };
     }
     
     // Find new, removed and changed items
@@ -263,11 +348,6 @@ export class SmartPoller<T> {
       }
     }
     
-    // Update last data
-    this.lastData = newData;
-    this.lastDataMap = newDataMap;
-    this.lastFingerprintMap = newFingerprintMap;
-    
     return {
       hasChanges: newItems.length > 0 || removedItems.length > 0 || changedItems.length > 0,
       newItems,
@@ -275,5 +355,32 @@ export class SmartPoller<T> {
       changedItems,
       unchangedItems
     };
+  }
+  
+  /**
+   * Execute polling and schedule next poll
+   */
+  private poll(): void {
+    if (!this.isPolling) {
+      return; // Don't poll if we've been stopped
+    }
+    
+    this.doPoll()
+      .then((changes) => {
+        // Always call onChanges for initial data or when there are changes
+        if (!this.lastData || changes.hasChanges) {
+          this.options.onChanges(this.lastData || [], changes);
+        }
+      })
+      .catch((error) => {
+        if (this.options.onError) {
+          this.options.onError(error);
+        }
+      })
+      .finally(() => {
+        if (this.isPolling) {
+          this.scheduleNextPoll();
+        }
+      });
   }
 } 

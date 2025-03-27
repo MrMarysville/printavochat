@@ -59,7 +59,26 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     this.setState({ errorInfo });
-    logger.error('Error caught by ErrorBoundary:', error, errorInfo);
+    
+    // Enhanced error logging with more context
+    const errorContext = {
+      componentStack: errorInfo.componentStack,
+      url: typeof window !== 'undefined' ? window.location.href : '',
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      timestamp: new Date().toISOString(),
+      errorType: error.name,
+      errorStackLines: error.stack?.split('\n').slice(0, 5) // First 5 lines of stack trace
+    };
+    
+    logger.error('Error caught by ErrorBoundary:', error, errorContext);
+    
+    // In development, log the full error to console for easier debugging
+    if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+      console.groupCollapsed('%c🚨 React Error Boundary Caught Error', 'color: #ff0000; font-weight: bold;');
+      console.error('Error:', error);
+      console.error('Component Stack:', errorInfo.componentStack);
+      console.groupEnd();
+    }
   }
 
   handleReset = (): void => {
@@ -76,8 +95,9 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   };
 
   renderApiErrorFallback(): React.ReactNode {
-    const { error } = this.state;
+    const { error, errorInfo } = this.state;
     const { retryLabel = "Try Again" } = this.props;
+    const isDev = process.env.NODE_ENV === 'development';
     
     return (
       <Card className="p-6 max-w-md mx-auto bg-white shadow-lg rounded-lg">
@@ -107,10 +127,43 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             </p>
           </div>
           
-          <div className="flex justify-center">
+          {/* Developer details (only in development mode) */}
+          {isDev && (
+            <details className="border p-2 rounded-md mb-4 text-xs text-left">
+              <summary className="cursor-pointer font-medium">Developer Details</summary>
+              <div className="mt-2 border-t pt-2">
+                <p className="font-bold">Error Name:</p>
+                <pre className="bg-gray-100 p-1 rounded">{error?.name}</pre>
+                
+                <p className="font-bold mt-2">Error Message:</p>
+                <pre className="bg-gray-100 p-1 rounded overflow-x-auto">{error?.message}</pre>
+                
+                <p className="font-bold mt-2">Stack Trace:</p>
+                <pre className="bg-gray-100 p-1 rounded overflow-x-auto text-[10px] max-h-40 overflow-y-auto">
+                  {error?.stack}
+                </pre>
+                
+                <p className="font-bold mt-2">Component Stack:</p>
+                <pre className="bg-gray-100 p-1 rounded overflow-x-auto text-[10px] max-h-40 overflow-y-auto">
+                  {errorInfo?.componentStack}
+                </pre>
+              </div>
+            </details>
+          )}
+          
+          <div className="flex justify-center space-x-2">
             <Button onClick={this.handleReset} className="bg-blue-600 hover:bg-blue-700">
               {retryLabel}
             </Button>
+            {isDev && (
+              <Button 
+                onClick={() => console.log('Error Details:', { error, errorInfo })} 
+                variant="outline" 
+                className="border-gray-300"
+              >
+                Log Details
+              </Button>
+            )}
           </div>
         </div>
       </Card>

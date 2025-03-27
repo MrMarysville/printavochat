@@ -19,6 +19,157 @@ function checkCredentials() {
   }
 }
 
+/**
+ * Enhanced function to extract all line items regardless of nesting
+ * This handles complex nested structures that might be present in the Printavo API
+ */
+function extractAllLineItems(data: any): any[] {
+  if (!data) return [];
+  
+  let allLineItems: any[] = [];
+  
+  // Function to recursively extract items
+  const extractItems = (node: any) => {
+    // Handle direct line items
+    if (node.lineItems?.edges) {
+      allLineItems = [
+        ...allLineItems,
+        ...node.lineItems.edges.map((edge: any) => ({
+          ...edge.node,
+          groupName: node.name || 'Default Group'
+        }))
+      ];
+    }
+    
+    // Handle nested line item groups
+    if (node.lineItemGroups?.edges) {
+      node.lineItemGroups.edges.forEach((edge: any) => {
+        if (edge.node) {
+          extractItems(edge.node);
+        }
+      });
+    }
+    
+    // Handle array of line items
+    if (Array.isArray(node)) {
+      node.forEach(item => extractItems(item));
+    }
+  };
+  
+  // Start extraction from the data object
+  extractItems(data);
+  
+  return allLineItems;
+}
+
+/**
+ * Get a specific order by ID with enhanced line item extraction
+ */
+export const getOrder = async (orderId: string) => {
+  // Validate order ID
+  if (!orderId || orderId.trim() === '') {
+    throw new Error('Order ID is required');
+  }
+  
+  logger.info(`Fetching order with ID: ${orderId}`);
+  try {
+    const query = `
+      query GetOrder($id: ID!) {
+        invoice(id: $id) {
+          id
+          visualId
+          nickname
+          total
+          subtotal
+          createdAt
+          dueAt
+          customerDueAt
+          productionNote
+          customerNote
+          status {
+            id
+            name
+          }
+          contact {
+            id
+            fullName
+            email
+            phone
+          }
+          billingAddress {
+            name
+            address1
+            address2
+            city
+            state
+            country
+            postalCode
+          }
+          shippingAddress {
+            name
+            address1
+            address2
+            city
+            state
+            country
+            postalCode
+          }
+          lineItemGroups {
+            edges {
+              node {
+                id
+                name
+                lineItems {
+                  edges {
+                    node {
+                      id
+                      name
+                      quantity
+                      price
+                      description
+                      items {
+                        edges {
+                          node {
+                            id
+                            name
+                            description
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          threadSummary {
+            lastMessage
+            previewText
+            updatedAt
+          }
+        }
+      }
+    `;
+    
+    const data = await executeGraphQL(query, { id: orderId }, "GetOrder");
+    
+    if (!data.invoice) {
+      throw new Error(`Order with ID ${orderId} not found`);
+    }
+    
+    // Enhance the order with all line items extracted from the nested structure
+    const enhancedOrder = {
+      ...data.invoice,
+      allLineItems: extractAllLineItems(data.invoice)
+    };
+    
+    return enhancedOrder;
+  } catch (error) {
+    logger.error(`Error fetching order with ID ${orderId}:`, error);
+    throw error;
+  }
+};
+
 export const OrdersAPI = {
   /**
    * Get an order by its visual ID directly from the Printavo API

@@ -5,14 +5,19 @@
  */
 
 import { logger } from './logger';
+import { getBaseApiUrl, getGraphQLEndpoint, getApiCredentials, withLock } from './utils/api-utils';
 
 // API base URL and authentication from env variables
-const API_BASE_URL = process.env.NEXT_PUBLIC_PRINTAVO_API_URL || 'https://www.printavo.com/api/v2';
-const API_EMAIL = process.env.NEXT_PUBLIC_PRINTAVO_EMAIL;
-const API_TOKEN = process.env.NEXT_PUBLIC_PRINTAVO_TOKEN;
+const API_BASE_URL = getBaseApiUrl();
+const API_EMAIL = getApiCredentials().email;
+const API_TOKEN = getApiCredentials().token;
 
-// GraphQL endpoint
-const GRAPHQL_ENDPOINT = `${API_BASE_URL}/graphql`;
+// GraphQL endpoint 
+const GRAPHQL_ENDPOINT = getGraphQLEndpoint();
+
+// Make sure this is correct
+// Double check that we're using the right endpoint
+console.log('Using Printavo GraphQL endpoint:', GRAPHQL_ENDPOINT);
 
 /**
  * Initialize API and check credentials
@@ -38,150 +43,251 @@ if (process.env.NODE_ENV !== 'test') {
   initializeApi();
 }
 
+// Store API connection status
+let apiConnectionStatus = {
+  connected: false,
+  checked: false,
+  account: null,
+  lastCheck: 0
+};
+
 /**
  * Checks if the Printavo API is accessible with the current credentials
  * @returns Promise with connection status and account info if successful
  */
 export async function checkApiConnection() {
-  const isBrowser = typeof window !== 'undefined';
-  const isTest = process.env.NODE_ENV === 'test';
-  logger.info('Checking Printavo API connection...');
-  
-  const ACCOUNT_QUERY = `
-    query {
-      account {
-        id
-        companyName
-        companyEmail
-        phone
-        website
-        timestamps {
-          createdAt
-          updatedAt
+  return withLock('api-connection-check', async () => {
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    
+    // Return cached status if we checked recently
+    if (apiConnectionStatus.checked && (now - apiConnectionStatus.lastCheck) < fiveMinutes) {
+      logger.debug('Using cached API connection status:', apiConnectionStatus.connected ? 'Connected' : 'Not connected');
+      return apiConnectionStatus;
+    }
+    
+    const isBrowser = typeof window !== 'undefined';
+    const isTest = process.env.NODE_ENV === 'test';
+    logger.info('Checking Printavo API connection...');
+    
+    const ACCOUNT_QUERY = `
+      query GetAccount {
+        account {
+          id
+          companyName
+          companyEmail
+          phone
+          website
+          timestamps {
+            createdAt
+            updatedAt
+          }
         }
       }
+    `;
+    
+    // Special handling for test environment to allow mocking
+    if (isTest && (global as any).__MOCK_API_RESPONSE__) {
+      logger.info('Using mocked API response for tests');
+      return (global as any).__MOCK_API_RESPONSE__;
     }
-  `;
-  
-  // Special handling for test environment to allow mocking
-  if (isTest && (global as any).__MOCK_API_RESPONSE__) {
-    logger.info('Using mocked API response for tests');
-    return (global as any).__MOCK_API_RESPONSE__;
-  }
-  
-  try {
-    // If in browser environment, use the /api/health endpoint instead of direct API call
-    // This avoids CORS issues with the Printavo API
-    if (isBrowser) {
+    
+    try {
+      // If in browser environment, use the /api/health endpoint instead of direct API call
+      // This avoids CORS issues with the Printavo API
+      if (isBrowser) {
+        try {
+          logger.info('Using /api/health endpoint for browser API check');
+          const response = await fetch('/api/health');
+          
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            logger.error('API health check failed:', errorText);
+            
+            // Update the status to reflect the error
+            apiConnectionStatus = {
+              connected: false,
+              checked: true,
+              account: null,
+              lastCheck: now
+            };
+            
+            return { 
+              connected: false, 
+              error: `${response.status} ${response.statusText}`, 
+              message: 'Failed to check API health' 
+            };
+          }
+          
+          const result = await response.json();
+          
+          // Update the connection status
+          apiConnectionStatus = {
+            connected: result.printavoApi?.connected || false,
+            checked: true,
+            account: result.printavoApi?.account || null,
+            lastCheck: now
+          };
+          
+          // Return the API status from the health endpoint
+          return {
+            connected: result.printavoApi?.connected || false,
+            account: result.printavoApi?.account || null,
+            message: result.printavoApi?.message || 'Connection status from health endpoint'
+          };
+        } catch (error) {
+          logger.error('Error accessing health endpoint:', error);
+          
+          // Update status to reflect the error
+          apiConnectionStatus = {
+            connected: false,
+            checked: true,
+            account: null,
+            lastCheck: now
+          };
+          
+          return { 
+            connected: false, 
+            error: error instanceof Error ? error.message : String(error),
+            message: 'Error accessing health endpoint' 
+          };
+        }
+      }
+      
+      // Server-side direct API call
       try {
-        logger.info('Using /api/health endpoint for browser API check');
-        const response = await fetch('/api/health');
+        const { email, token } = getApiCredentials();
+        const response = await fetch(`${GRAPHQL_ENDPOINT}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'email': email,
+            'token': token,
+          },
+          body: JSON.stringify({
+            query: ACCOUNT_QUERY,
+            operationName: 'GetAccount'
+          }),
+          cache: 'no-store'
+        });
+        
+        logger.debug('API Connection check status:', response.status, response.statusText);
         
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error');
-          logger.error('API health check failed:', errorText);
+          logger.error('API Connection failed:', errorText);
+          
+          // Update status to reflect the error
+          apiConnectionStatus = {
+            connected: false,
+            checked: true,
+            account: null,
+            lastCheck: now
+          };
+          
           return { 
             connected: false, 
             error: `${response.status} ${response.statusText}`, 
-            message: 'Failed to check API health' 
+            message: 'Failed to connect to Printavo API' 
           };
         }
         
         const result = await response.json();
         
-        // Return the API status from the health endpoint
-        return {
-          connected: result.printavoApi?.connected || false,
-          account: result.printavoApi?.account || null,
-          message: result.printavoApi?.message || 'Connection status from health endpoint'
-        };
+        // Handle different response formats - checking for all possible structures
+        if (result.data?.account) {
+          logger.info('Successfully connected to Printavo API');
+          logger.info(`Account: ${result.data.account.companyName} (${result.data.account.companyEmail})`);
+          
+          // Update status to reflect success
+          apiConnectionStatus = {
+            connected: true,
+            checked: true,
+            account: result.data.account,
+            lastCheck: now
+          };
+          
+          return { 
+            connected: true, 
+            account: result.data.account,
+            message: 'Connected successfully'
+          };
+        } else if (result.account) { 
+          // Direct account property for test mocks
+          logger.info('Successfully connected to Printavo API (alternative format)');
+          
+          // Update status to reflect success
+          apiConnectionStatus = {
+            connected: true,
+            checked: true,
+            account: result.account,
+            lastCheck: now
+          };
+          
+          return {
+            connected: true,
+            account: result.account,
+            message: 'Connected successfully'
+          };
+        } else {
+          logger.warn('API response did not contain account data');
+          
+          // Update status to reflect the error
+          apiConnectionStatus = {
+            connected: false,
+            checked: true,
+            account: null,
+            lastCheck: now
+          };
+          
+          return { 
+            connected: false, 
+            error: 'No account data',
+            message: 'Could not retrieve account information'
+          };
+        }
       } catch (error) {
-        logger.error('Error accessing health endpoint:', error);
+        logger.error('API Connection error:', error);
+        
+        // Update status to reflect the error
+        apiConnectionStatus = {
+          connected: false,
+          checked: true,
+          account: null,
+          lastCheck: now
+        };
+        
         return { 
           connected: false, 
           error: error instanceof Error ? error.message : String(error),
-          message: 'Error accessing health endpoint' 
-        };
-      }
-    }
-    
-    // Server-side direct API call
-    try {
-      const response = await fetch(`${GRAPHQL_ENDPOINT}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'email': API_EMAIL || '',
-          'token': API_TOKEN || '',
-        },
-        body: JSON.stringify({
-          query: ACCOUNT_QUERY,
-        }),
-        cache: 'no-store'
-      });
-      
-      logger.debug('API Connection check status:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        logger.error('API Connection failed:', errorText);
-        return { 
-          connected: false, 
-          error: `${response.status} ${response.statusText}`, 
-          message: 'Failed to connect to Printavo API' 
-        };
-      }
-      
-      const result = await response.json();
-      
-      // Handle different response formats - checking for all possible structures
-      if (result.data?.account) {
-        logger.info('Successfully connected to Printavo API');
-        logger.info(`Account: ${result.data.account.companyName} (${result.data.account.companyEmail})`);
-        return { 
-          connected: true, 
-          account: result.data.account,
-          message: 'Connected successfully'
-        };
-      } else if (result.account) { 
-        // Direct account property for test mocks
-        logger.info('Successfully connected to Printavo API (alternative format)');
-        return {
-          connected: true,
-          account: result.account,
-          message: 'Connected successfully'
-        };
-      } else {
-        logger.warn('API response did not contain account data');
-        return { 
-          connected: false, 
-          error: 'No account data',
-          message: 'Could not retrieve account information'
+          message: 'Connection error'
         };
       }
     } catch (error) {
-      logger.error('API Connection error:', error);
+      // This is a fallback for any unexpected errors in the main try block
+      logger.error('Unexpected error in API connection check:', error);
+      
+      // Update status to reflect the error
+      apiConnectionStatus = {
+        connected: false,
+        checked: true,
+        account: null,
+        lastCheck: now
+      };
+      
       return { 
         connected: false, 
         error: error instanceof Error ? error.message : String(error),
-        message: 'Connection error'
+        message: 'Unexpected error checking connection'
       };
     }
-  } catch (error) {
-    // This is a fallback for any unexpected errors in the main try block
-    logger.error('Unexpected error in API connection check:', error);
-    return { 
-      connected: false, 
-      error: error instanceof Error ? error.message : String(error),
-      message: 'Unexpected error checking connection'
-    };
-  }
+  });
 }
 
-// Utility functions for API configuration
-const getApiUrl = () => process.env.NEXT_PUBLIC_PRINTAVO_API_URL || 'https://www.printavo.com/api/v2';
-const getApiToken = () => process.env.NEXT_PUBLIC_PRINTAVO_TOKEN;
+// Utility functions for API configuration - using our new utility functions
+export const getApiUrl = getBaseApiUrl;
+export const getApiToken = () => getApiCredentials().token;
 
 /**
  * Execute a GraphQL query with retry logic and better error handling
@@ -189,9 +295,10 @@ const getApiToken = () => process.env.NEXT_PUBLIC_PRINTAVO_TOKEN;
 export async function executeGraphQL(
   query: string,
   variables: Record<string, any> = {},
-  operationName: string
+  operationName: string = ""
 ): Promise<any> {
-  const apiUrl = `${getApiUrl()}/graphql`;
+  // We don't add /graphql to the URL as that's already included in the API endpoint
+  const apiUrl = getApiUrl();
   const apiToken = getApiToken();
   const apiEmail = process.env.NEXT_PUBLIC_PRINTAVO_EMAIL;
 
@@ -199,10 +306,60 @@ export async function executeGraphQL(
     throw new Error('Printavo API configuration missing. Please check your .env file.');
   }
 
-  // Add strict validation for operation name
+  // Try to extract operation name from query if not provided
   if (!operationName || operationName.trim() === '') {
-    const error = new PrintavoValidationError('GraphQL operation name is required and cannot be empty', 400);
-    logger.error('Missing operation name for GraphQL query:', error);
+    // Attempt to match operation name from query or mutation definitions (case insensitive)
+    const operationMatch = query.match(/\b(?:query|mutation)\s+([A-Za-z0-9_]+)\b/i);
+    if (operationMatch && operationMatch[1]) {
+      operationName = operationMatch[1];
+      logger.debug(`Extracted GraphQL operation name from query: ${operationName}`);
+    } else {
+      // If we cannot extract a name, generate a default one based on the query content
+      // This avoids the "No operation named ''" error
+      const queryHash = hashQuery(query);
+      const defaultOpName = `GraphQLQuery_${queryHash}`;
+      operationName = defaultOpName;
+      logger.warn(`No operation name provided and could not extract from query. Using generated name: ${operationName}`, {
+        query: query.substring(0, 100) + '...'
+      });
+      
+      // Add operation name to the query if it doesn't have one
+      if (!query.match(/\b(?:query|mutation)\s+[A-Za-z0-9_]+\b/i)) {
+        // Check if this is a query or mutation
+        const isQuery = !query.trim().startsWith('mutation');
+        // Safely insert the operation name at the beginning of the query
+        if (isQuery) {
+          if (query.trim().startsWith('{')) {
+            // Anonymous query starting with { - add query keyword and name
+            query = `query ${operationName} ${query}`;
+          } else {
+            // Named query but without operation name - try to add it
+            query = query.replace(/^\s*query\s*{/, `query ${operationName} {`);
+            if (!query.includes(`query ${operationName}`)) {
+              // If replacement failed, try a simpler approach
+              query = `query ${operationName} ${query}`;
+            }
+          }
+        } else {
+          // Handle mutations similarly
+          query = query.replace(/^\s*mutation\s*{/, `mutation ${operationName} {`);
+          if (!query.includes(`mutation ${operationName}`)) {
+            // If replacement failed, try a simpler approach
+            query = `mutation ${operationName} ${query}`;
+          }
+        }
+        logger.debug(`Modified query to include operation name: ${query.substring(0, 100)}...`);
+      }
+    }
+  }
+
+  // Final validation - ensure we have an operation name before proceeding
+  if (!operationName || operationName.trim() === '') {
+    const error = new Error('GraphQL operation name is required but could not be determined');
+    logger.error('Failed to determine operation name for GraphQL query', {
+      query: query.substring(0, 500),
+      error
+    });
     throw error;
   }
 
@@ -270,6 +427,16 @@ export async function executeGraphQL(
       if (data.errors && data.errors.length > 0) {
         const errorMessages = data.errors.map((e: any) => e.message).join(', ');
         
+        // Enhanced error logging with more context
+        logger.error('GraphQL errors detected', {
+          errors: data.errors,
+          query: query.substring(0, 500),
+          operationName,
+          variables,
+          timestamp: new Date().toISOString(),
+          endpoint: apiUrl
+        });
+        
         // Check if any of the errors indicate authentication issues
         const authErrors = data.errors.filter((e: any) => 
           e.message.includes('authentication') || 
@@ -303,6 +470,17 @@ export async function executeGraphQL(
       // For network errors or other unexpected errors
       const errorMessage = error instanceof Error ? error.message : String(error);
       
+      // Enhanced error logging for unexpected errors
+      logger.error('GraphQL request failed unexpectedly', {
+        error,
+        query: query.substring(0, 500),
+        operationName,
+        variables,
+        endpoint: apiUrl,
+        retryCount,
+        timestamp: new Date().toISOString()
+      });
+      
       // Check if we should retry based on the error type
       const shouldRetry = !errorMessage.includes('Authentication error') && 
                           !errorMessage.includes('not found') &&
@@ -322,6 +500,24 @@ export async function executeGraphQL(
 
   // This shouldn't be reached due to the throw in the last iteration of the loop
   throw new Error('Exceeded maximum retries for GraphQL request');
+}
+
+/**
+ * Generate a simple hash for a GraphQL query to create unique operation names
+ */
+function hashQuery(query: string): string {
+  let hash = 0;
+  if (query.length === 0) return 'empty';
+  
+  // Use a simple string hash algorithm
+  for (let i = 0; i < query.length; i++) {
+    const char = query.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  
+  // Convert to a positive hexadecimal string
+  return Math.abs(hash).toString(16).substring(0, 8);
 }
 
 // Function to create mock data for development

@@ -13,12 +13,14 @@ The Printavo Chat application offers a user-friendly chat interface that allows 
 - **Query Data:** Ask questions about customers, orders, invoices, and other Printavo entities using natural language.
 - **Perform Actions:** Initiate actions such as creating quotes, updating order statuses, and sending payment requests through chat commands.
 - **Receive Notifications:** Get real-time updates and notifications about important events in Printavo.
+- **Access SanMar Data:** Retrieve product information, inventory levels, and other data from SanMar.
 
 **User Experience Goals:**
 - **Intuitive and Natural:** The chat interface should feel natural and easy to use, requiring minimal learning.
 - **Efficient and Fast:** Users should be able to quickly get the information they need and perform actions without delays.
 - **Reliable and Stable:** The application should be stable and reliable, providing consistent and accurate results.
 - **Secure and Private:** User data and Printavo credentials should be handled securely and with privacy in mind.
+- **Seamless Integration:** The SanMar data should be integrated seamlessly into the existing Printavo data and workflows.
 
 **Target Users:**
 - Printavo business owners
