@@ -53,3 +53,6 @@ logs
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Updated MCP
+updated-mcp.json
