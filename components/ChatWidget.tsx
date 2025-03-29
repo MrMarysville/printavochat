@@ -5,8 +5,8 @@ import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { MessageCircle, Wifi, WifiOff, X } from 'lucide-react';
-import { checkConnection } from '@/lib/graphql-client';
 import { logger } from '@/lib/logger';
+import { printavoService } from '@/lib/printavo-service';
 import ErrorBoundary from './error-boundary';
 import {
   Sheet,
@@ -39,13 +39,18 @@ ChatInterfaceLoading.displayName = 'ChatInterfaceLoading';
 const ChatInterfaceDynamic = dynamic(
   () => import('./chat-interface').catch(err => {
     logger.error('Failed to load chat interface:', err);
-    return () => <ChatInterfaceError />;
+    const ErrorComponent = () => <ChatInterfaceError />;
+    ErrorComponent.displayName = 'ChatInterfaceErrorFallback';
+    return ErrorComponent;
   }),
   {
     loading: () => <ChatInterfaceLoading />,
     ssr: false // Disable server-side rendering for this component
   }
 );
+
+// Add display name to the dynamic component
+ChatInterfaceDynamic.displayName = 'ChatInterfaceDynamic';
 
 function ChatWidget(): React.ReactElement {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -68,9 +73,17 @@ function ChatWidget(): React.ReactElement {
     const checkApi = async () => {
       setCheckingApi(true);
       try {
-        const status = await checkConnection();
+        // Use the printavoService to check connection
+        // We'll use a simple search with empty query to test connection
+        const result = await printavoService.searchOrders({ query: '', first: 1 });
+        
         if (isMounted) {
-          setApiStatus(status);
+          setApiStatus({
+            connected: result.success === true, // Ensure boolean type
+            checked: true,
+            account: result.success === true ? { name: 'Printavo' } : null,
+            message: result.success === true ? undefined : 'Failed to connect to Printavo API'
+          });
         }
       } catch (error) {
         if (isMounted) {
@@ -101,10 +114,17 @@ function ChatWidget(): React.ReactElement {
   const recheckApiConnection = async () => {
     setCheckingApi(true);
     try {
-      // First try to check the connection using the health endpoint
+      // Use the printavoService to check connection
       logger.info("Manually checking API connection...");
-      const status = await checkConnection(true); // Force fresh check
-      setApiStatus(status);
+      const result = await printavoService.searchOrders({ query: '', first: 1 });
+      
+      setApiStatus({
+        connected: result.success === true, // Ensure boolean type
+        checked: true,
+        account: result.success === true ? { name: 'Printavo' } : null,
+        message: result.success === true ? undefined : 'Failed to connect to Printavo API'
+      });
+      
       logger.info("API connection check completed");
     } catch (error) {
       logger.error("Error rechecking API connection:", error);

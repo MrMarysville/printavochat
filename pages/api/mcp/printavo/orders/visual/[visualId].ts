@@ -1,5 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { mcp_printavo_graphql_mcp_server_search_orders } from '@/lib/mcp';
+// Import the service instead of the non-existent mcp module
+import { printavoService } from '@/lib/printavo-service';
+import { logger } from '@/lib/logger'; // Import logger
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -13,22 +15,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Search for orders with the visual ID
-    const orders = await mcp_printavo_graphql_mcp_server_search_orders({
-      query: visualId,
-      limit: 1  // We only need the first match
-    });
+    // Use the service to get the order by visual ID
+    const result = await printavoService.getOrderByVisualId(visualId);
 
-    // Find the exact match
-    const order = orders.find((o: any) => o.visualId === visualId);
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
+    if (!result.success) {
+      logger.error(`Error fetching order by visual ID ${visualId} via service:`, result.errors);
+      // Use 404 if the specific error indicates not found, otherwise 500
+      const statusCode = result.error?.message?.includes('not found') ? 404 : 500;
+      const errorMessage = result.errors?.[0]?.message || `Failed to fetch order by visual ID ${visualId}`;
+      return res.status(statusCode).json({ error: errorMessage });
     }
 
-    return res.status(200).json(order);
+    // Return the found order data
+    return res.status(200).json(result.data);
+
   } catch (error) {
-    console.error(`Error fetching order by visual ID ${visualId}:`, error);
-    return res.status(500).json({ error: 'Failed to fetch order' });
+    logger.error(`API route error fetching order by visual ID ${visualId}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown server error';
+    return res.status(500).json({ error: `Server error: ${errorMessage}` });
   }
-} 
+}

@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { mcp_printavo_graphql_mcp_server_search_orders } from '@/lib/mcp';
+// Import the service instead of the non-existent mcp module
+import { printavoService } from '@/lib/printavo-service';
+import { logger } from '@/lib/logger'; // Import logger
+import { PrintavoOrder } from '@/lib/types'; // Import type
 
 interface MonthlyOrderData {
   [key: string]: {
@@ -14,11 +17,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get last 100 orders to ensure we have enough data for 6 months
-    const orders = await mcp_printavo_graphql_mcp_server_search_orders({
-      query: '',
-      limit: 100
+    // Use the service to get the last 100 orders
+    const result = await printavoService.searchOrders({
+      query: '', // Assuming empty query gets recent orders
+      first: 100
     });
+
+    if (!result.success) {
+      logger.error('Error fetching orders for chart data via service:', result.errors);
+      const errorMessage = result.errors?.[0]?.message || 'Failed to fetch orders for chart';
+      return res.status(500).json({ error: errorMessage });
+    }
+
+    // Extract the actual orders from the nested structure
+    const orders: PrintavoOrder[] = result.data?.quotes?.edges?.map(edge => edge.node) || [];
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
@@ -38,10 +50,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`
       };
     }
-    
+
     // Fill in the actual data
-    orders.forEach((order: any) => {
+    orders.forEach((order: PrintavoOrder) => { // Use PrintavoOrder type
       try {
+        // Ensure createdAt exists before processing
+        if (!order.createdAt) {
+            logger.warn(`Skipping order ${order.id || 'unknown'} due to missing createdAt date.`);
+            return;
+        }
         const date = new Date(order.createdAt);
         // Only include orders from the last 6 months
         if (date >= sixMonthsAgo) {
@@ -74,8 +91,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     return res.status(200).json({ chartData });
+
   } catch (error) {
-    console.error('Error generating orders chart data:', error);
-    return res.status(500).json({ error: 'Failed to generate orders chart data' });
+    logger.error('API route error generating orders chart data:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown server error';
+    return res.status(500).json({ error: `Server error: ${errorMessage}` });
   }
-} 
+}

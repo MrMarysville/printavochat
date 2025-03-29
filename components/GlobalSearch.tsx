@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
 import ErrorBoundary from "@/components/error-boundary";
-import { searchOrders } from "@/lib/printavo-api";
+import { printavoService } from "@/lib/printavo-service";
 
 type SearchResult = {
   id: string;
@@ -59,15 +59,36 @@ export default function GlobalSearch() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await searchOrders(debouncedTerm);
-        const orders = response.data.orders;
-        const searchResults = orders.map(order => ({
-          id: order.id,
-          type: "order",
-          title: order.customer.name,
-          visualId: order.visual_id,
-          href: `/orders/${order.visual_id}`,
-        }));
+        // Use the printavoService to search orders
+        const response = await printavoService.searchOrders({ 
+          query: debouncedTerm,
+          first: 10
+        });
+        
+        if (!response.success) {
+          throw new Error(response.errors?.[0]?.message || 'Search failed');
+        }
+        
+        // Extract orders from the nested structure
+        const orders = response.data?.quotes?.edges?.map(edge => edge.node) || [];
+        
+        // Map to search results format - use type assertion to handle unknown structure
+        const searchResults = orders.map(order => {
+          // Use type assertion to access properties that might not be in the type definition
+          const orderAny = order as any;
+          
+          return {
+            id: order.id,
+            type: "order" as const,
+            title: orderAny.contact?.fullName || orderAny.nickname || `Order ${orderAny.visualId || ''}`,
+            subtitle: orderAny.contact?.email || '',
+            visualId: orderAny.visualId || '',
+            status: order.status?.name || 'Unknown',
+            statusColor: orderAny.status?.color || '',
+            href: `/orders/${order.id}`,
+          };
+        });
+        
         setResults(searchResults);
         setIsOpen(true);
       } catch (err) {

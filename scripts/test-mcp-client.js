@@ -21,9 +21,9 @@ console.log('\nAPI Test endpoint: /api/test-mcp?query=your_search_term');
 
 // Display available MCP tools
 console.log('\nAvailable MCP tools:');
-console.log('- mcp_printavo_graphql_mcp_server_get_order');
-console.log('- mcp_printavo_graphql_mcp_server_get_customer');
-console.log('- mcp_printavo_graphql_mcp_server_search_orders');
+console.log('- get_order (server: printavo-graphql-mcp-server)');
+console.log('- get_customer (server: printavo-graphql-mcp-server)');
+console.log('- search_orders (server: printavo-graphql-mcp-server)');
 
 console.log('\nTo test the MCP server directly, run this script in Cursor.ai with MCP access.');
-console.log('\nTest complete!'); 
+console.log('\nTest complete!');

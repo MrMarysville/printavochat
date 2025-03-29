@@ -156,23 +156,23 @@ MCP servers extend Cline's capabilities by providing specialized tools and acces
 
 ### SanMar MCP Server (`sanmar-mcp-server`)
 - **Purpose:** Provides tools to interact with the SanMar API (both Standard and PromoStandards) via SOAP.
-- **Location:** `C:\Users\King\Documents\Cline\MCP\sanmar-mcp-server`
+- **Location:** `c:/Users/King/Downloads/print/sanmar-mcp-server/` (Copied into project)
 - **Technology:** Node.js, `soap` package, `@modelcontextprotocol/sdk`.
-- **Setup:** Configured in `cline_mcp_settings.json` with SanMar credentials.
-- **Status:** Installed and running. Provides a wide range of tools.
+- **Setup:** Configured in `cline_mcp_settings.json` with SanMar credentials, pointing to the project directory.
+- **Status:** Installed and running from project directory. Provides a wide range of tools.
 
 ### SanMar FTP MCP Server (`sanmar-ftp-mcp-server`)
 - **Purpose:** Downloads files from the SanMar FTP server.
-- **Location:** `C:\Users\King\Documents\Cline\MCP\sanmar-ftp-mcp-server`
+- **Location:** `c:/Users/King/Downloads/print/sanmar-ftp-mcp-server/` (Copied into project)
 - **Technology:** Node.js, `ssh2` package, `@modelcontextprotocol/sdk`.
-- **Setup:** Configured in `cline_mcp_settings.json` (credentials might be placeholders).
-- **Status:** Installed, potentially running (credentials need verification).
+- **Setup:** Configured in `cline_mcp_settings.json`, pointing to the project directory.
+- **Status:** Installed and running from project directory.
 
 ### Printavo GraphQL MCP Server (`printavo-graphql-mcp-server`)
 - **Purpose:** Provides tools to interact directly with the Printavo GraphQL API (v2).
-- **Location:** `C:\Users\King\Documents\Cline\MCP\printavo-graphql-mcp-server`
+- **Location:** `c:/Users/King/Downloads/print/printavo-graphql-mcp-server/` (Copied into project, original deleted)
 - **Technology:** Node.js, `@modelcontextprotocol/sdk`. Uses `fetch` internally for API calls.
-- **Setup:** Configured in `cline_mcp_settings.json` with Printavo API URL, email, and token.
-- **Status:** Installed and running.
+- **Setup:** Configured in `cline_mcp_settings.json` with Printavo API URL, email, and token, pointing to the project directory.
+- **Status:** Installed and running from project directory.
 - **Documentation:** See `memory-bank/printavo-mcp-server.md` for details on tools and usage.
 - **Integration:** The main application can optionally use this server via `lib/printavo-mcp-client.ts`, controlled by the `USE_PRINTAVO_MCP` environment variable.

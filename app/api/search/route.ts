@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { executeGraphQL } from "@/lib/printavo-api";
 import { logger } from "@/lib/logger";
 import { isVisualId } from "@/lib/visual-id-utils";
-import { PrintavoAPIError } from "@/lib/graphql/errors";
+import { PrintavoAPIError } from "@/lib/printavo-api";
+import { printavoService } from "@/lib/printavo-service";
+import { PrintavoOrder } from "@/lib/types";
+
+// Define result type for search results
+interface SearchResult {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  visualId?: string;
+  status?: string;
+  statusColor?: string;
+  href: string;
+}
 
 export const dynamic = "force-dynamic"; // Disable caching for this route
 
@@ -34,16 +47,52 @@ export async function GET(request: NextRequest) {
     const isVisualIdSearch = isVisualId(query);
     
     // Initially empty results array
-    let results = [];
+    let results: SearchResult[] = [];
     
     // Visual ID specific search
     if (isVisualIdSearch) {
-      results = await searchByVisualId(query);
+      // Try to get the order directly by visual ID first
+      const visualIdResult = await printavoService.getOrderByVisualId(query);
+      if (visualIdResult.success && visualIdResult.data) {
+        // Format the result - handle the data structure from MCP
+        const order = visualIdResult.data as any; // Type as any to handle unknown structure
+        results = [{
+          id: order.id,
+          type: "order",
+          title: order.nickname || `Order ${order.visualId || ''}`,
+          subtitle: order.contact?.fullName 
+            ? `${order.contact.fullName} (${order.contact.email || 'No email'})` 
+            : 'No customer',
+          visualId: order.visualId || '',
+          status: order.status?.name || "Unknown",
+          statusColor: getStatusColorClass(order.status?.color),
+          href: `/orders/${order.id}`
+        }];
+      }
     }
     
     // If no results from Visual ID or it's not a Visual ID, do a general search
     if (results.length === 0) {
-      results = await generalSearch(query);
+      // Use the searchOrders method from printavoService
+      const searchResult = await printavoService.searchOrders({ query, first: 10 });
+      
+      if (searchResult.success && searchResult.data?.quotes?.edges) {
+        results = searchResult.data.quotes.edges.map((edge: any) => {
+          const node = edge.node;
+          return {
+            id: node.id,
+            type: "order",
+            title: node.nickname || `Order ${node.visualId || ''}`,
+            subtitle: node.contact?.fullName 
+              ? `${node.contact.fullName} (${node.contact.email || 'No email'})` 
+              : 'No customer',
+            visualId: node.visualId || '',
+            status: node.status?.name || "Unknown",
+            statusColor: getStatusColorClass(node.status?.color),
+            href: `/orders/${node.id}`
+          };
+        });
+      }
     }
     
     return NextResponse.json({
@@ -60,7 +109,7 @@ export async function GET(request: NextRequest) {
           message: error.message,
           results: []
         },
-        { status: error._statusCode || 500 }
+        { status: error.statusCode || 500 }
       );
     }
     
@@ -75,190 +124,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * Search specifically by Visual ID, looking first at orders
- */
-async function searchByVisualId(visualId: string) {
-  try {
-    const ordersQuery = `
-      query SearchOrdersByVisualId($query: String!) {
-        invoices(first: 5, query: $query) {
-          edges {
-            node {
-              id
-              visualId
-              nickname
-              createdAt
-              status {
-                id
-                name
-                color
-              }
-              contact {
-                id
-                fullName
-                email
-              }
-            }
-          }
-        }
-      }
-    `;
-    
-    const data = await executeGraphQL(ordersQuery, { query: visualId }, "SearchOrdersByVisualId");
-    
-    if (!data?.invoices?.edges || data.invoices.edges.length === 0) {
-      return [];
-    }
-    
-    return data.invoices.edges.map((edge: any) => {
-      const node = edge.node;
-      return {
-        id: node.id,
-        type: "order",
-        title: node.nickname || `Order ${node.visualId}`,
-        subtitle: node.contact?.fullName ? `${node.contact.fullName} (${node.contact.email || 'No email'})` : 'No customer',
-        visualId: node.visualId,
-        status: node.status?.name || "Unknown",
-        statusColor: getStatusColorClass(node.status?.color),
-        href: `/orders/${node.id}`
-      };
-    });
-  } catch (error) {
-    logger.error(`Error in Visual ID search: ${error}`);
-    return [];
-  }
-}
-
-/**
- * General search across multiple entity types
- */
-async function generalSearch(query: string) {
-  try {
-    // Search across orders, customers, and quotes in parallel
-    const [ordersResults, customersResults] = await Promise.all([
-      searchOrders(query),
-      searchCustomers(query)
-    ]);
-    
-    // Combine and sort results
-    return [...ordersResults, ...customersResults]
-      .sort((a, b) => {
-        // Sort by "relevance" - we could make this more sophisticated
-        // Currently prioritizing exact matches in the title
-        if (a.title.toLowerCase().includes(query.toLowerCase()) && 
-            !b.title.toLowerCase().includes(query.toLowerCase())) {
-          return -1;
-        }
-        if (!a.title.toLowerCase().includes(query.toLowerCase()) && 
-            b.title.toLowerCase().includes(query.toLowerCase())) {
-          return 1;
-        }
-        return 0;
-      });
-  } catch (error) {
-    logger.error(`Error in general search: ${error}`);
-    return [];
-  }
-}
-
-/**
- * Search orders 
- */
-async function searchOrders(query: string) {
-  try {
-    const ordersQuery = `
-      query SearchOrders($query: String!) {
-        invoices(first: 5, query: $query) {
-          edges {
-            node {
-              id
-              visualId
-              nickname
-              createdAt
-              status {
-                id
-                name
-                color
-              }
-              contact {
-                id
-                fullName
-                email
-              }
-            }
-          }
-        }
-      }
-    `;
-    
-    const data = await executeGraphQL(ordersQuery, { query }, "SearchOrders");
-    
-    if (!data?.invoices?.edges || data.invoices.edges.length === 0) {
-      return [];
-    }
-    
-    return data.invoices.edges.map((edge: any) => {
-      const node = edge.node;
-      return {
-        id: node.id,
-        type: "order",
-        title: node.nickname || `Order ${node.visualId}`,
-        subtitle: node.contact?.fullName ? `${node.contact.fullName} (${node.contact.email || 'No email'})` : 'No customer',
-        visualId: node.visualId,
-        status: node.status?.name || "Unknown",
-        statusColor: getStatusColorClass(node.status?.color),
-        href: `/orders/${node.id}`
-      };
-    });
-  } catch (error) {
-    logger.error(`Error in orders search: ${error}`);
-    return [];
-  }
-}
-
-/**
- * Search customers
- */
-async function searchCustomers(query: string) {
-  try {
-    const customersQuery = `
-      query SearchCustomers($query: String!) {
-        contacts(first: 5, query: $query) {
-          edges {
-            node {
-              id
-              fullName
-              email
-              phone
-              company
-            }
-          }
-        }
-      }
-    `;
-    
-    const data = await executeGraphQL(customersQuery, { query }, "SearchCustomers");
-    
-    if (!data?.contacts?.edges || data.contacts.edges.length === 0) {
-      return [];
-    }
-    
-    return data.contacts.edges.map((edge: any) => {
-      const node = edge.node;
-      return {
-        id: node.id,
-        type: "customer",
-        title: node.fullName || 'Unnamed Customer',
-        subtitle: node.company ? `${node.company} (${node.email || node.phone || 'No contact info'})` : (node.email || node.phone || 'No contact info'),
-        href: `/customers/${node.id}`
-      };
-    });
-  } catch (error) {
-    logger.error(`Error in customers search: ${error}`);
-    return [];
-  }
-}
+// Note: The searchByVisualId, generalSearch, searchOrders, and searchCustomers functions
+// have been removed since we're now using the printavoService directly in the main GET function
 
 /**
  * Helper to convert Printavo status colors to Tailwind classes

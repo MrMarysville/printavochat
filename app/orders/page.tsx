@@ -19,10 +19,15 @@ interface PageInfo {
 }
 
 interface OrdersResponse {
-  orders: {
+  quotes?: {
     edges: Array<{ node: PrintavoOrder }>;
-    pageInfo: PageInfo;
-    totalCount: number;
+    pageInfo?: PageInfo;
+    totalCount?: number;
+  };
+  orders?: {
+    edges: Array<{ node: PrintavoOrder }>;
+    pageInfo?: PageInfo;
+    totalCount?: number;
   };
 }
 
@@ -76,31 +81,33 @@ export default function OrdersPage() {
         }
       }
 
-      const response = await printavoService.getOrders({
+      const response = await printavoService.searchOrders({
         first: pageSize,
-        query: queryString.trim() || undefined,
+        query: queryString.trim() || '',
         ...(direction === 'next' && cursor ? { after: cursor } : {}),
         ...(direction === 'prev' && cursor ? { before: cursor } : {})
       });
 
       if (response.success && response.data) {
         const data = response.data as OrdersResponse;
-        // Extract orders array from the edges
-        if (data.orders?.edges) {
-          const ordersList = data.orders.edges.map(edge => edge.node);
+        // Extract orders array from the edges - check both orders and quotes
+        const edges = data.orders?.edges || data.quotes?.edges;
+        const pageInfo = data.orders?.pageInfo || data.quotes?.pageInfo;
+        const totalCount = data.orders?.totalCount || data.quotes?.totalCount || 0;
+        
+        if (edges) {
+          const ordersList = edges.map(edge => edge.node);
           setOrders(ordersList);
 
           // Handle pagination info
-          if (data.orders.pageInfo) {
-            setHasNextPage(data.orders.pageInfo.hasNextPage);
-            setHasPreviousPage(data.orders.pageInfo.hasPreviousPage);
-            setEndCursor(data.orders.pageInfo.endCursor);
-            setStartCursor(data.orders.pageInfo.startCursor);
+          if (pageInfo) {
+            setHasNextPage(pageInfo.hasNextPage);
+            setHasPreviousPage(pageInfo.hasPreviousPage);
+            setEndCursor(pageInfo.endCursor);
+            setStartCursor(pageInfo.startCursor);
           }
 
-          if (data.orders.totalCount !== undefined) {
-            setTotalOrders(data.orders.totalCount);
-          }
+          setTotalOrders(totalCount);
         } else {
           setOrders([]);
           setTotalOrders(0);

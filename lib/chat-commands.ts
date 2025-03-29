@@ -325,18 +325,28 @@ async function processCustomerDetails(): Promise<ChatCommandResult> {
   
   // We have all required details, create the customer
   try {
+    // Add non-null assertions as we've checked for missing fields
     const result = await printavoService.createCustomer({
-      firstName: pendingCustomer.firstName,
-      lastName: pendingCustomer.lastName,
+      firstName: pendingCustomer.firstName!,
+      lastName: pendingCustomer.lastName!,
       email: pendingCustomer.email,
       phone: pendingCustomer.phone,
       companyName: pendingCustomer.company
     });
-    
-    if (result.success && result.data) {
+
+    // Check for errors instead of success flag
+    if (result.errors && result.errors.length > 0) {
+      return {
+        success: false, // Keep success flag for ChatCommandResult structure
+        message: `Failed to create customer: ${result.errors[0]?.message || 'Unknown error'}. Please try again with different information.`
+      };
+    }
+
+    // If no errors, proceed with data
+    if (result.data) {
       globalQuoteCreationState.quoteData.customerId = result.data.id;
       globalQuoteCreationState.stage = 'items';
-      
+
       // Create a default "Items" group
       globalQuoteCreationState.lineItemGroups.push({
         name: "Items",
@@ -355,9 +365,10 @@ Example: "Add item: 30 t-shirts style TS100 color Blue sizes: S(5), M(10), L(10)
 `
       };
     } else {
+      // Handle case where data might be missing even without errors (shouldn't happen ideally)
       return {
         success: false,
-        message: `Failed to create customer: ${result.error?.message || 'Unknown error'}. Please try again with different information.`
+        message: `Failed to create customer: Unknown error occurred after creation attempt.`
       };
     }
   } catch (error) {
@@ -420,11 +431,14 @@ async function setCustomerInfo(customerInfo: string): Promise<ChatCommandResult>
         first: 5,
         query: email
       });
-      
-      if (existingCustomers.success && 
-          existingCustomers.data?.customers?.edges && 
-          existingCustomers.data.customers.edges.length > 0) {
-        
+
+      // Check for errors first
+      if (existingCustomers.errors && existingCustomers.errors.length > 0) {
+         logger.error(`Error searching for existing customer: ${JSON.stringify(existingCustomers.errors)}`);
+         // Fallback to creating a new customer if search fails
+      } else if (existingCustomers.data?.customers?.edges &&
+                 existingCustomers.data.customers.edges.length > 0) {
+
         // Find exact match for email
         const exactMatch = existingCustomers.data.customers.edges.find(
           (edge: any) => edge.node.email && edge.node.email.toLowerCase() === email.toLowerCase()
@@ -608,12 +622,56 @@ async function addLineItemToQuote(itemText: string): Promise<ChatCommandResult> 
     .replace(/(?:in|to|for) group(?:\s|:)+[^$]+?(?:\s+(?:at|\$|each)|$)/i, '')
     .replace(/(?:at|for|each|per)/, '')
     .trim();
-  
-  // Handle special cases
-  if (name.toLowerCase().includes("shirt") || name.toLowerCase().includes("tee")) {
-    name = name || "Custom T-shirts";
-  } else if (name.toLowerCase().includes("hoodie") || name.toLowerCase().includes("sweatshirt")) {
-    name = name || "Custom Hoodies";
+
+  // --- SanMar Product Lookup ---
+  let sanmarProductName: string | undefined;
+  let sanmarProductDescription: string | undefined;
+
+  if (style) {
+    try {
+      logger.info(`[ChatCommands] Looking up SanMar style: ${style}, color: ${color || 'any'}`);
+      // @ts-ignore - Assume global use_mcp_tool exists and is typed correctly elsewhere
+      const sanmarResult = await use_mcp_tool('sanmar-mcp-server', 'get_sanmar_product_info', {
+        style: style,
+        ...(color && { color: color }) // Only include color if it exists
+      });
+
+      // The tool returns an array of product variants. Find the best match or use the first one.
+      if (Array.isArray(sanmarResult) && sanmarResult.length > 0) {
+        // Try to find an exact match for color if provided
+        let productData = sanmarResult.find(variant =>
+          variant?.productBasicInfo?.color?.toLowerCase() === color?.toLowerCase()
+        );
+        
+        // If no exact color match, use the first result
+        if (!productData) {
+          productData = sanmarResult[0];
+        }
+
+        if (productData?.productBasicInfo) {
+          sanmarProductName = productData.productBasicInfo.productTitle || productData.productBasicInfo.style; // Fallback to style if title missing
+          sanmarProductDescription = productData.productBasicInfo.productDescription;
+          logger.info(`[ChatCommands] Found SanMar product: ${sanmarProductName}`);
+        } else {
+           logger.warn(`[ChatCommands] SanMar lookup for style ${style} returned data but missing productBasicInfo.`);
+        }
+      } else {
+        logger.warn(`[ChatCommands] SanMar lookup for style ${style} did not return a valid product array. Result: ${JSON.stringify(sanmarResult)}`);
+      }
+    } catch (error) {
+      logger.error(`[ChatCommands] Error looking up SanMar style ${style}: ${error instanceof Error ? error.message : String(error)}`);
+      // Proceed without SanMar data, error is logged
+    }
+  }
+  // --- End SanMar Product Lookup ---
+
+
+  // Use SanMar name if available, otherwise use parsed/default name
+  name = sanmarProductName || name || "Item"; // Use fetched name or parsed name, fallback to "Item"
+  if (!sanmarProductName && (name.toLowerCase().includes("shirt") || name.toLowerCase().includes("tee"))) {
+    name = "Custom T-shirts"; // Default name if not from SanMar and looks like a shirt
+  } else if (!sanmarProductName && (name.toLowerCase().includes("hoodie") || name.toLowerCase().includes("sweatshirt"))) {
+    name = "Custom Hoodies"; // Default name if not from SanMar and looks like a hoodie
   }
   
   if (price === 0) {
@@ -624,8 +682,9 @@ async function addLineItemToQuote(itemText: string): Promise<ChatCommandResult> 
   }
   
   // Generate description including style, color and sizes if provided
-  let description = '';
-  
+  let description = sanmarProductDescription || ''; // Start with SanMar description if available
+
+
   if (style) {
     description += `Style: ${style}. `;
   }
@@ -640,8 +699,8 @@ async function addLineItemToQuote(itemText: string): Promise<ChatCommandResult> 
   
   // Create a line item with the parsed data
   const lineItem = {
-    name,
-    description: description || undefined,
+    name, // Use the potentially updated name from SanMar lookup or parsing
+    description: description.trim() || undefined, // Use the potentially updated description
     quantity,
     unitPrice: price
   };
@@ -985,8 +1044,21 @@ async function promptForPaymentTerms(): Promise<ChatCommandResult> {
   try {
     // Make a request to fetch payment terms
     const response = await printavoService.getPaymentTerms();
-    
-    if (response.success && response.data && response.data.paymentTerms) {
+
+    // Check for errors first
+    if (response.errors && response.errors.length > 0) {
+      logger.error(`Error fetching payment terms: ${JSON.stringify(response.errors)}`);
+      // Continue without payment terms if fetch fails
+      globalQuoteCreationState.stage = 'notes';
+      globalQuoteCreationState.quoteData.inProductionAt = calculateProductionDate();
+      return {
+        success: true, // Still success from chat command perspective
+        message: "There was an error retrieving payment terms. Let's continue without setting one. You can add notes by saying 'notes: [your notes]'."
+      };
+    }
+
+    // If no errors and data exists
+    if (response.data && response.data.paymentTerms) {
       // Store the payment terms in the state
       globalQuoteCreationState.paymentTerms = response.data.paymentTerms.map((term: any) => ({
         id: term.id,

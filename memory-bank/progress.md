@@ -2,12 +2,16 @@
 
 **Completed:**
 - ✅ Initial project setup and file structure.
-- ✅ Created core memory bank documentation:
+- ✅ Created and initialized core memory bank documentation:
     - `projectbrief.md`
     - `productContext.md`
     - `systemPatterns.md`
     - `techContext.md`
     - `activeContext.md`
+    - `progress.md`
+    - `voice-features.md`
+    - `printavo-mcp-server.md`
+    - `printavoApiDocs/*` (API documentation)
 - ✅ Enhanced API route in `app/api/printavo/route.ts` with better error handling and request validation.
 - ✅ Added and verified functionality for querying orders by Visual ID:
     - Updated `printavo-service.ts` to properly use `getOrderByVisualId` from `graphql-client.ts`.
@@ -44,11 +48,15 @@
 - ✅ Implemented order status update functionality:
     - Added `getStatuses` method to fetch available statuses from Printavo API
     - Created StatusSelect component for selecting and updating order status
-    - Updated OrderCard component to integrate status update functionality 
+    - Updated OrderCard component to integrate status update functionality
     - Created utility functions for consistent status color handling
     - Added orders management page to demonstrate status update capabilities
     - Implemented proper error handling and user feedback for status updates
 - ✅ Created `.clinerules` file to document important project patterns and knowledge.
+- ✅ Integrated SanMar product lookup into quote creation (`lib/chat-commands.ts`).
+- ✅ Relocated MCP servers (Printavo, SanMar, SanMar FTP) into the project directory.
+- ✅ Updated `cline_mcp_settings.json` to use new server paths.
+- ✅ Deleted original Printavo MCP server folder.
 - ✅ Implemented comprehensive error handling system:
     - Created specific error classes (Authentication, Validation, NotFound, RateLimit)
     - Updated API routes to use consistent error handling patterns
@@ -174,9 +182,9 @@
   - Enhanced caching strategies with TTL support
   - Improved error handling and recovery
   - Created dedicated StatusesAPI for better code organization
-  - Added comprehensive logging for debugging
-  - Implemented request queuing to prevent rate limiting
-  - Added intelligent retry logic with exponential backoff
+    - Added comprehensive logging for debugging
+    - Implemented request queuing to prevent rate limiting
+    - Added intelligent retry logic with exponential backoff
 
 - ✅ Created and configured Printavo GraphQL MCP Server:
   - Implemented tools for core read operations (get account, user, order, customer, contact, status, search, etc.).
@@ -207,6 +215,13 @@
   - Fixed state management for initial data scenarios
   - Ensured proper cleanup of resources after tests
   - Added better test isolation for async operations
+- ✅ Refactored API response handling:
+    - Updated `lib/printavo-service.ts` and `lib/chat-commands.ts` to correctly use the `PrintavoAPIResponse` interface (checking `errors` array instead of `success` property).
+- ✅ Managed and verified MCP Server Configuration:
+    - Attempted to update `cline_mcp_settings.json` to run SanMar servers from the project directory.
+    - Diagnosed connection failure due to incorrect path assumption.
+    - Reverted server paths in `cline_mcp_settings.json` to the original `C:\Users\King\Documents\Cline\MCP\` location.
+    - Confirmed successful connection to `sanmar-mcp-server` at the correct path via a test tool call.
 
 **To Do:**
 - **API Optimization:**
@@ -318,9 +333,10 @@
 - Add analytics to track usage patterns and identify common queries
   - Refine error boundary to provide more actionable error messages
 - **Printavo MCP Server Enhancements:**
-  - Implement remaining query tools from API documentation.
-  - Implement mutation tools (e.g., `quoteCreate`, `invoiceCreate`, `customerCreate`, `contactCreate`, `lineItemCreate`, etc.).
-  - Add robust error handling (retries, timeouts) to MCP server API calls.
+  - **Resolve Server Update Issue:** Address the blocking issue where the MCP host system doesn't recognize new tools after rebuilds.
+  - **Implement Missing Queries:** Add tools for remaining single-entity (`product`, `merchOrder`, `transactionDetail`) and list queries (`contacts`, `customers`, `inquiries`, `invoices`, `merchStores`, `paymentRequests`, `products`, `quotes`, `tasks`, `threads`, `transactions`) based on `results.json`.
+  - **Implement Missing Mutations:** Add tools for key mutations like `quoteCreate`, `invoiceCreate`, `customerCreate`, `contactCreate`, `lineItemCreate`, `contactUpdate`, `invoiceUpdate`, `customerUpdate`, `lineItemUpdate`, `quoteUpdate`, `lineItemDelete`, `invoiceDuplicate`, `quoteDuplicate`, etc., based on `results.json`.
+  - **Add Robust Error Handling:** Implement retries, timeouts, and better error classification within the MCP server's API calls.
 
 **Notes:**
 - The Visual ID query feature now supports simpler "find order XXXX" queries in addition to more explicit formats.
@@ -353,3 +369,53 @@
   - Added skeleton loading states for improved perceived performance
   - Implemented global search in navigation for easy access to orders and customers
   - Enhanced error displays with actionable information
+
+# Project Progress: Printavo Integration
+
+## What Works Now
+
+### Printavo GraphQL MCP Server
+- **Complete implementation**: Created a fully functional Printavo GraphQL MCP server
+- **Server Components**:
+  - Main server code for registration and configuration
+  - Tools implementation for all operations
+  - GraphQL queries and mutations definitions
+  - TypeScript type definitions for Printavo data
+  - Input type definitions for mutations
+- **Authentication**: Successfully connecting to Printavo API with proper credentials
+- **All Read Operations**: All read tools have been implemented and registered:
+  - Account and user information retrieval
+  - Order, quote, invoice management
+  - Customer and contact information
+  - Line items and products
+  - Tasks, inquiries, and statuses
+- **All Write Operations**: All mutation tools have been implemented and registered:
+  - Status updates
+  - Customer and contact creation/updates
+  - Quote and invoice operations
+  - Line item management
+  - Address and transaction operations
+
+## In Progress / Next Steps
+
+### Server Enhancements
+- **Testing**: Comprehensive testing of all implemented tools
+- **Error Handling**: Adding more robust error handling for API issues
+- **Documentation**: Creating detailed usage examples
+- **Rate Limiting**: Implementing rate limiting handling
+
+### Integration with Other Systems
+- Connecting the MCP server to other applications
+- Creating higher-level tools that combine multiple operations
+
+## Known Issues and Challenges
+
+### Technical Issues
+- MCP host system may not recognize new tools after rebuilds (requires restart)
+- Some complex mutations require careful validation to prevent errors
+- Error handling can be improved with retries and better error messages
+
+### Future Considerations
+- Performance monitoring for high-volume usage
+- More sophisticated error handling and recovery
+- Enhanced documentation with examples for each tool

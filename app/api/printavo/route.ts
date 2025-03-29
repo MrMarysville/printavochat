@@ -59,8 +59,7 @@ export async function GET(request: Request) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return NextResponse.json({
           success: false,
-          errors: [{ message: `Failed to find order with visual ID ${visualId}: ${errorMessage}`
- }]
+          errors: [{ message: `Failed to find order with visual ID ${visualId}: ${errorMessage}` }]
         }, { status: 404 });
       }
     }
@@ -69,8 +68,7 @@ export async function GET(request: Request) {
     if (!endpoint) {
       return NextResponse.json({ 
         success: false, 
-        errors: [{ message: 'Endpoint is required' 
- }]
+        errors: [{ message: 'Endpoint is required' }]
       }, { status: 400 });
     }
 
@@ -80,19 +78,31 @@ export async function GET(request: Request) {
       const orderId = endpoint.replace('/order/', '');
       response = await printavoService.getOrder(orderId);
     } else if (endpoint.startsWith('/orders')) {
-      response = await printavoService.getOrders(parsedParams);
+      // Use searchOrders instead of getOrders
+      response = await printavoService.searchOrders({ 
+        query: parsedParams.query || '',
+        first: parsedParams.limit || 10
+      });
     } else if (endpoint.startsWith('/customer/')) {
-      const customerId = endpoint.replace('/customer/', '');
-      response = await printavoService.getCustomer(customerId);
+      // Customer endpoint is not supported in MCP client
+      logger.warn('Customer endpoint not supported in MCP client');
+      return NextResponse.json({
+        success: false,
+        errors: [{ message: 'Customer endpoint not supported in MCP client' }]
+      }, { status: 400 });
     } else if (endpoint.startsWith('/customers')) {
-      response = await printavoService.getCustomers(parsedParams);
+      // Customers endpoint is not supported in MCP client
+      logger.warn('Customers endpoint not supported in MCP client');
+      return NextResponse.json({
+        success: false,
+        errors: [{ message: 'Customers endpoint not supported in MCP client' }]
+      }, { status: 400 });
     } else {
       // For any other endpoints, log warning and return error
       logger.warn(`Unrecognized endpoint: ${endpoint}`);
       return NextResponse.json({
         success: false,
-        errors: [{ message: 'Invalid endpoint'
- }]
+        errors: [{ message: 'Invalid endpoint' }]
       }, { status: 400 });
     }
     
@@ -126,9 +136,8 @@ export async function GET(request: Request) {
     }
     
     return NextResponse.json({ 
-success: false,
- errors: [{ message: errorMessage 
- }]
+      success: false,
+      errors: [{ message: errorMessage }]
     }, { status: statusCode });
   }
 }
@@ -141,8 +150,7 @@ export async function POST(request: Request) {
     if (!endpoint) {
       return NextResponse.json({ 
         success: false, 
-        errors: [{ message: 'Endpoint is required' 
- }]
+        errors: [{ message: 'Endpoint is required' }]
       }, { status: 400 });
     }
 
@@ -150,45 +158,22 @@ export async function POST(request: Request) {
     if (!data) {
       return NextResponse.json({ 
         success: false, 
-        errors: [{ message: 'Request data is required' 
- }]
+        errors: [{ message: 'Request data is required' }]
       }, { status: 400 });
     }
 
     let response;
     
     // Handle different endpoints
-    if (endpoint === '/quote/create') {
-      response = await printavoService.createQuote(data);
-    } else if (endpoint === '/order/status/update') {
+    if (endpoint === '/order/status/update') {
       validateRequiredParams(data, ['orderId', 'statusId']);
       response = await printavoService.updateStatus(data.orderId, data.statusId);
-    } else if (endpoint === '/fee/create') {
-      validateRequiredParams(data, ['parentId', 'fee']);
-      response = await printavoService.createFee(data.parentId, data.fee);
-    } else if (endpoint === '/fee/update') {
-      validateRequiredParams(data, ['id', 'fee']);
-      response = await printavoService.updateFee(data.id, data.fee);
-    } else if (endpoint === '/lineitemgroup/create') {
-      validateRequiredParams(data, ['parentId', 'group']);
-      response = await printavoService.createLineItemGroup(data.parentId, data.group);
-    } else if (endpoint === '/lineitem/create') {
-      validateRequiredParams(data, ['lineItemGroupId', 'item']);
-      response = await printavoService.createLineItem(data.lineItemGroupId, data.item);
-    } else if (endpoint === '/imprint/create') {
-     validateRequiredParams(data, ['lineItemGroupId', 'imprint']);
-     response = await printavoService.createImprint(data.lineItemGroupId, data.imprint);
-    } else if (endpoint === '/customer/create') {
-      response = await printavoService.createCustomer(data);
-    } else if (endpoint === '/invoice/create') {
-      response = await printavoService.createInvoice(data);
     } else {
-      // For any other endpoints, log warning and return error
-      logger.warn(`Unrecognized endpoint: ${endpoint}`);
+      // Most POST operations are not supported in the MCP client
+      logger.warn(`Endpoint not supported in MCP client: ${endpoint}`);
       return NextResponse.json({
         success: false,
-        errors: [{ message: 'Invalid endpoint'
- }]
+        errors: [{ message: `Endpoint not supported in MCP client: ${endpoint}` }]
       }, { status: 400 });
     }
     
@@ -222,9 +207,8 @@ export async function POST(request: Request) {
     }
     
     return NextResponse.json({ 
-success: false,
- errors: [{ message: errorMessage 
- }]
+      success: false,
+      errors: [{ message: errorMessage }]
     }, { status: statusCode });
   }
 }
@@ -238,32 +222,23 @@ export async function DELETE(request: Request) {
     if (!endpoint) {
       return NextResponse.json({ 
         success: false, 
-        errors: [{ message: 'Endpoint is required' 
- }]
+        errors: [{ message: 'Endpoint is required' }]
       }, { status: 400 });
     }
 
     if (!id) {
       return NextResponse.json({ 
         success: false, 
-        errors: [{ message: 'ID is required' 
- }]
+        errors: [{ message: 'ID is required' }]
       }, { status: 400 });
     }
 
-    let response;
-    
-    if (endpoint === '/fee/delete') {
-      response = await printavoService.deleteFee(id);
-    } else {
-      return NextResponse.json({
-        success: false,
-        errors: [{ message: 'Invalid endpoint'
- }]
-      }, { status: 400 });
-    }
-    
-    return NextResponse.json(response);
+    // DELETE operations are not supported in the MCP client
+    logger.warn(`DELETE endpoint not supported in MCP client: ${endpoint}`);
+    return NextResponse.json({
+      success: false,
+      errors: [{ message: `DELETE endpoint not supported in MCP client: ${endpoint}` }]
+    }, { status: 400 });
   } catch (error) {
     logger.error('Printavo API error:', error);
     
@@ -293,9 +268,8 @@ export async function DELETE(request: Request) {
     }
     
     return NextResponse.json({ 
-success: false,
- errors: [{ message: errorMessage 
- }]
+      success: false,
+      errors: [{ message: errorMessage }]
     }, { status: statusCode });
   }
 }

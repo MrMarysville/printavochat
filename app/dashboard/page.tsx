@@ -465,9 +465,9 @@ export default function Dashboard() {
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
             
-            // Create maps for order counts and revenue by month
-            const ordersByMonth = {};
-            const revenueByMonth = {};
+            // Create maps for order counts and revenue by month with proper typing
+            const ordersByMonth: Record<string, { count: number; label: string }> = {};
+            const revenueByMonth: Record<string, { total: number; label: string }> = {};
             
             for (let i = 0; i < 6; i++) {
               const date = new Date(now);

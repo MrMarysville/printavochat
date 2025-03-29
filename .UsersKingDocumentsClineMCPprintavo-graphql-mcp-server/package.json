@@ -1,0 +1,25 @@
+{
+  "name": "printavo-graphql-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Printavo GraphQL API",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc && node build/index.js",
+    "test": "node tests/test-all-tools.js",
+    "test:individual": "node tests/test-individual-tool.js",
+    "test:sanmar": "node tests/test-sanmar-integration.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "dotenv": "^10.0.0",
+    "express": "^5.0.1",
+    "node-fetch": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.6",
+    "@types/node-fetch": "^2.5.12",
+    "typescript": "^4.5.2"
+  }
+}

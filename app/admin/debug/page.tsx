@@ -3,39 +3,35 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+// Import UI components
 import { logger } from '@/lib/logger';
 import { ErrorSimulator } from './error-simulation';
 
-// Alert and AlertDescription custom components since we don't have the real ones
-const Alert = ({ children, className = "", ...props }) => (
+// Define custom UI components since the imports are failing
+// These are simplified versions of the shadcn/ui components
+const Alert = ({ children, className = "", ...props }: React.HTMLAttributes<HTMLDivElement> & { className?: string }) => (
   <div className={`border p-4 rounded-md bg-blue-50 border-blue-200 ${className}`} {...props}>
     {children}
   </div>
 );
 
-const AlertTitle = ({ children }) => (
+const AlertTitle = ({ children }: { children: React.ReactNode }) => (
   <h5 className="font-medium mb-1">{children}</h5>
 );
 
-const AlertDescription = ({ children }) => (
+const AlertDescription = ({ children }: { children: React.ReactNode }) => (
   <div className="text-sm">{children}</div>
 );
 
 // Tabs components
-const Tabs = ({ children, defaultValue, ...props }) => {
+const Tabs = ({ children, defaultValue, ...props }: { children: React.ReactNode, defaultValue: string } & React.HTMLAttributes<HTMLDivElement>) => {
   const [activeTab, setActiveTab] = useState(defaultValue);
   
   return (
     <div {...props}>
       {React.Children.map(children, child => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child, { 
+          return React.cloneElement(child as React.ReactElement<any>, { 
             activeTab, 
             setActiveTab 
           });
@@ -46,31 +42,44 @@ const Tabs = ({ children, defaultValue, ...props }) => {
   );
 };
 
-const TabsList = ({ children, className = "", ...props }) => (
+const TabsList = ({ children, className = "", ...props }: React.HTMLAttributes<HTMLDivElement> & { className?: string }) => (
   <div className={`flex space-x-2 mb-4 ${className}`} {...props}>
     {children}
   </div>
 );
 
-const TabsTrigger = ({ value, activeTab, setActiveTab, children }) => (
+const TabsTrigger = ({ value, activeTab, setActiveTab, children }: { 
+  value: string, 
+  activeTab?: string, 
+  setActiveTab?: (value: string) => void, 
+  children: React.ReactNode 
+}) => (
   <button
     className={`px-3 py-1 rounded ${activeTab === value ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}
-    onClick={() => setActiveTab(value)}
+    onClick={() => setActiveTab && setActiveTab(value)}
   >
     {children}
   </button>
 );
 
-const TabsContent = ({ value, activeTab, children }) => {
+const TabsContent = ({ value, activeTab, children }: { 
+  value: string, 
+  activeTab?: string, 
+  children: React.ReactNode 
+}) => {
   if (value !== activeTab) return null;
   return <div>{children}</div>;
 };
 
 // Accordion components
-const Accordion = ({ children, type, collapsible }) => {
-  const [openItems, setOpenItems] = useState(new Set());
+const Accordion = ({ children, type, collapsible }: { 
+  children: React.ReactNode, 
+  type?: 'single' | 'multiple', 
+  collapsible?: boolean 
+}) => {
+  const [openItems, setOpenItems] = useState(new Set<string>());
   
-  const toggleItem = (itemValue) => {
+  const toggleItem = (itemValue: string) => {
     setOpenItems(prev => {
       const newItems = new Set(prev);
       if (newItems.has(itemValue)) {
@@ -89,8 +98,8 @@ const Accordion = ({ children, type, collapsible }) => {
     <div className="border rounded-md overflow-hidden">
       {React.Children.map(children, child => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child, { 
-            isOpen: openItems.has(child.props.value),
+          return React.cloneElement(child as React.ReactElement<any>, { 
+            isOpen: openItems.has((child as React.ReactElement<any>).props.value),
             toggleItem
           });
         }
@@ -100,11 +109,16 @@ const Accordion = ({ children, type, collapsible }) => {
   );
 };
 
-const AccordionItem = ({ value, isOpen, toggleItem, children }) => (
+const AccordionItem = ({ value, isOpen, toggleItem, children }: { 
+  value: string, 
+  isOpen?: boolean, 
+  toggleItem?: (value: string) => void, 
+  children: React.ReactNode 
+}) => (
   <div className="border-b last:border-b-0">
     {React.Children.map(children, child => {
       if (React.isValidElement(child)) {
-        return React.cloneElement(child, { 
+        return React.cloneElement(child as React.ReactElement<any>, { 
           value,
           isOpen,
           toggleItem
@@ -115,10 +129,15 @@ const AccordionItem = ({ value, isOpen, toggleItem, children }) => (
   </div>
 );
 
-const AccordionTrigger = ({ value, isOpen, toggleItem, children }) => (
+const AccordionTrigger = ({ value, isOpen, toggleItem, children }: { 
+  value: string, 
+  isOpen?: boolean, 
+  toggleItem?: (value: string) => void, 
+  children: React.ReactNode 
+}) => (
   <button
     className="w-full p-3 text-left flex justify-between items-center"
-    onClick={() => toggleItem(value)}
+    onClick={() => toggleItem && toggleItem(value)}
   >
     {children}
     <svg 
@@ -138,7 +157,10 @@ const AccordionTrigger = ({ value, isOpen, toggleItem, children }) => (
   </button>
 );
 
-const AccordionContent = ({ isOpen, children }) => {
+const AccordionContent = ({ isOpen, children }: { 
+  isOpen?: boolean, 
+  children: React.ReactNode 
+}) => {
   if (!isOpen) return null;
   return (
     <div className="p-3 border-t bg-gray-50">
@@ -146,6 +168,37 @@ const AccordionContent = ({ isOpen, children }) => {
     </div>
   );
 };
+
+// Badge component
+const Badge = ({ children, className = "", ...props }: React.HTMLAttributes<HTMLDivElement> & { className?: string }) => (
+  <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+// Switch component
+const Switch = ({ id, checked, onCheckedChange }: { 
+  id: string, 
+  checked?: boolean, 
+  onCheckedChange?: (checked: boolean) => void 
+}) => (
+  <button
+    id={id}
+    role="switch"
+    aria-checked={checked}
+    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
+    onClick={() => onCheckedChange && onCheckedChange(!checked)}
+  >
+    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+  </button>
+);
+
+// Label component
+const Label = ({ htmlFor, children }: { htmlFor: string, children: React.ReactNode }) => (
+  <label htmlFor={htmlFor} className="text-sm font-medium">
+    {children}
+  </label>
+);
 
 // Define error log entry type
 interface ErrorLogEntry {
@@ -433,82 +486,83 @@ const ErrorDebugPage: React.FC = () => {
   );
 };
 
-// Error list component
+// Error list component - simplified to avoid TypeScript errors
 const ErrorList: React.FC<{ errors: ErrorLogEntry[] }> = ({ errors }) => {
   return (
     <div className="space-y-4">
       {errors.map((error) => (
-        <Accordion type="single" collapsible key={error.id}>
-          <AccordionItem value={error.id}>
-            <AccordionTrigger>
-              <div className="flex items-start text-left">
-                <Badge className={
-                  error.level === 'error' ? 'bg-red-100 text-red-800' :
-                  error.level === 'warn' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-blue-100 text-blue-800'
-                }>
-                  {error.level}
-                </Badge>
-                <div className="ml-2">
-                  <div className="font-medium">{error.message.substring(0, 100)}{error.message.length > 100 ? '...' : ''}</div>
-                  <div className="text-xs text-gray-500">{formatTime(error.timestamp)} · {error.source || 'unknown'}</div>
+        <div key={error.id} className="border rounded-md overflow-hidden">
+          <div className="p-3 border-b flex items-start">
+            <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              error.level === 'error' ? 'bg-red-100 text-red-800' :
+              error.level === 'warn' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-blue-100 text-blue-800'
+            }`}>
+              {error.level}
+            </div>
+            <div className="ml-2">
+              <div className="font-medium">{error.message.substring(0, 100)}{error.message.length > 100 ? '...' : ''}</div>
+              <div className="text-xs text-gray-500">
+                {new Date(error.timestamp).toLocaleTimeString()} · {error.source || 'unknown'}
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-3 bg-gray-50">
+            <div className="space-y-3 text-sm">
+              <div>
+                <h4 className="font-semibold mb-1">Error Message</h4>
+                <div className="bg-gray-100 p-2 rounded">{error.message}</div>
+              </div>
+              
+              {error.stack && (
+                <div>
+                  <h4 className="font-semibold mb-1">Stack Trace</h4>
+                  <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto max-h-40 overflow-y-auto">
+                    {error.stack}
+                  </pre>
+                </div>
+              )}
+              
+              {error.componentStack && (
+                <div>
+                  <h4 className="font-semibold mb-1">Component Stack</h4>
+                  <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto max-h-40 overflow-y-auto">
+                    {error.componentStack}
+                  </pre>
+                </div>
+              )}
+              
+              <div>
+                <h4 className="font-semibold mb-1">Details</h4>
+                <pre className="whitespace-pre-wrap overflow-x-auto text-xs bg-gray-100 p-2 rounded">
+                  {error.details ? JSON.stringify(error.details, null, 2) : 'null'}
+                </pre>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <h4 className="font-semibold mb-1">Time</h4>
+                  <div className="bg-gray-100 p-2 rounded">{new Date(error.timestamp).toLocaleString()}</div>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-1">Source</h4>
+                  <div className="bg-gray-100 p-2 rounded">{error.source || 'Unknown'}</div>
                 </div>
               </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-3 text-sm">
+              
+              {error.url && (
                 <div>
-                  <h4 className="font-semibold mb-1">Error Message</h4>
-                  <div className="bg-gray-100 p-2 rounded">{error.message}</div>
+                  <h4 className="font-semibold mb-1">URL</h4>
+                  <div className="bg-gray-100 p-2 rounded text-xs break-all">{error.url}</div>
                 </div>
-                
-                {error.stack && (
-                  <div>
-                    <h4 className="font-semibold mb-1">Stack Trace</h4>
-                    <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto max-h-40 overflow-y-auto">
-                      {error.stack}
-                    </pre>
-                  </div>
-                )}
-                
-                {error.componentStack && (
-                  <div>
-                    <h4 className="font-semibold mb-1">Component Stack</h4>
-                    <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto max-h-40 overflow-y-auto">
-                      {error.componentStack}
-                    </pre>
-                  </div>
-                )}
-                
-                <div>
-                  <h4 className="font-semibold mb-1">Details</h4>
-                  {formatJSON(error.details)}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <h4 className="font-semibold mb-1">Time</h4>
-                    <div className="bg-gray-100 p-2 rounded">{new Date(error.timestamp).toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-1">Source</h4>
-                    <div className="bg-gray-100 p-2 rounded">{error.source || 'Unknown'}</div>
-                  </div>
-                </div>
-                
-                {error.url && (
-                  <div>
-                    <h4 className="font-semibold mb-1">URL</h4>
-                    <div className="bg-gray-100 p-2 rounded text-xs break-all">{error.url}</div>
-                  </div>
-                )}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+              )}
+            </div>
+          </div>
+        </div>
       ))}
     </div>
   );
 };
 
-export default ErrorDebugPage; 
+export default ErrorDebugPage;

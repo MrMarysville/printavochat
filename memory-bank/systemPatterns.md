@@ -64,6 +64,7 @@ graph LR
     -   External MCP server providing tools for SanMar API interaction.
     -   Communicates via SOAP with SanMar's Standard and PromoStandards APIs.
     -   Accessed via the API Gateway using `use_mcp_tool`.
+    -   Integrated into `lib/chat-commands.ts` (`addLineItemToQuote`) to fetch product details (name, description) based on style number during quote creation.
 
 10. **SanMar FTP MCP Server:**
     -   External MCP server for downloading files from the SanMar FTP server.

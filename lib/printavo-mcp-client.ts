@@ -30,7 +30,7 @@ export class PrintavoMcpClient {
       logger.info(`[PrintavoMcpClient] Getting order with ID: ${orderId}`);
       
       // @ts-ignore - The global use_mcp_tool is added by Cursor.ai
-      const result = await use_mcp_tool('mcp_printavo_graphql_mcp_server_get_order', {
+      const result = await use_mcp_tool('printavo-graphql-mcp-server', 'get_order', {
         orderId
       });
       
@@ -57,7 +57,7 @@ export class PrintavoMcpClient {
       logger.info(`[PrintavoMcpClient] Getting customer with ID: ${customerId}`);
       
       // @ts-ignore - The global use_mcp_tool is added by Cursor.ai
-      const result = await use_mcp_tool('mcp_printavo_graphql_mcp_server_get_customer', {
+      const result = await use_mcp_tool('printavo-graphql-mcp-server', 'get_customer', {
         customerId
       });
       
@@ -85,7 +85,7 @@ export class PrintavoMcpClient {
       logger.info(`[PrintavoMcpClient] Searching orders with query: ${query}, limit: ${limit}`);
       
       // @ts-ignore - The global use_mcp_tool is added by Cursor.ai
-      const result = await use_mcp_tool('mcp_printavo_graphql_mcp_server_search_orders', {
+      const result = await use_mcp_tool('printavo-graphql-mcp-server', 'search_orders', {
         query,
         limit
       });
@@ -106,4 +106,4 @@ export class PrintavoMcpClient {
 }
 
 // Export singleton instance
-export const printavoMcpClient = PrintavoMcpClient.getInstance(); 
+export const printavoMcpClient = PrintavoMcpClient.getInstance();

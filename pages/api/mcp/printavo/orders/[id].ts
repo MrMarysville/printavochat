@@ -1,5 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { mcp_printavo_graphql_mcp_server_get_order } from '@/lib/mcp';
+// Import the service instead of the non-existent mcp module
+import { printavoService } from '@/lib/printavo-service';
+import { logger } from '@/lib/logger'; // Import logger
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -8,22 +10,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { id } = req.query;
 
-  if (!id || typeof id !== 'string') {
-    return res.status(400).json({ error: 'Order ID is required' });
+  if (typeof id !== 'string' || !id) {
+    return res.status(400).json({ error: 'Invalid or missing order ID' });
   }
 
   try {
-    const data = await mcp_printavo_graphql_mcp_server_get_order({
-      orderId: id
-    });
+    // Use the service to get the order
+    const result = await printavoService.getOrder(id);
 
-    if (!data) {
-      return res.status(404).json({ error: 'Order not found' });
+    if (!result.success) {
+      logger.error(`Error fetching order ${id} via service:`, result.errors);
+      const statusCode = result.error?.name === 'PrintavoNotFoundError' ? 404 : 500;
+      const errorMessage = result.errors?.[0]?.message || `Failed to fetch order ${id}`;
+      return res.status(statusCode).json({ error: errorMessage });
     }
 
-    return res.status(200).json(data);
+    // Return the order data
+    return res.status(200).json(result.data);
+
   } catch (error) {
-    console.error(`Error fetching order ${id}:`, error);
-    return res.status(500).json({ error: 'Failed to fetch order' });
+    logger.error(`API route error fetching order ${id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown server error';
+    return res.status(500).json({ error: `Server error: ${errorMessage}` });
   }
-} 
+}

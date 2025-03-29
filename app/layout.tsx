@@ -1,6 +1,6 @@
 import './globals.css';
 import React from 'react';
-import { Inter } from 'next/font/google';
+// Remove the next/font import that's causing the conflict
 import { Toaster } from '@/components/ui/toaster';
 import { ToastProvider } from '@/components/ui/use-toast';
 import { Navbar } from '@/components/Navbar';
@@ -8,7 +8,8 @@ import type { Metadata } from 'next';
 import { cn } from '@/lib/utils';
 import ChatWidget from '@/components/ChatWidget';
 
-const inter = Inter({ subsets: ['latin'] });
+// Instead of using next/font, we'll use a CSS class and import the font in globals.css
+// The font will be loaded via a link tag or @import in globals.css
 
 export const metadata: Metadata = {
   title: 'Printavo Chat',
@@ -22,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={cn(inter.className, "min-h-screen bg-background")} suppressHydrationWarning>
+      <body className="min-h-screen bg-background font-sans" suppressHydrationWarning>
         <ToastProvider>
           <div className="flex flex-col min-h-screen">
             <Navbar />

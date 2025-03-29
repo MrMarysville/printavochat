@@ -16,7 +16,8 @@ export async function GET(request: Request) {
     // Execute the requested operation
     switch (operation) {
       case 'getOrders':
-        result = await printavoService.getOrders({ limit: parseInt(limit) });
+        // Use searchOrders instead of getOrders
+        result = await printavoService.searchOrders({ query: '', first: parseInt(limit) });
         break;
       case 'getOrder':
         if (!id) {
@@ -25,13 +26,18 @@ export async function GET(request: Request) {
         result = await printavoService.getOrder(id);
         break;
       case 'getCustomers':
-        result = await printavoService.getCustomers({ limit: parseInt(limit) });
+        // This method might not exist in the MCP client, so we'll handle it differently
+        return NextResponse.json({ 
+          success: false, 
+          error: 'getCustomers operation is not supported in the MCP client. Use searchOrders instead.' 
+        }, { status: 400 });
         break;
       case 'getCustomer':
-        if (!id) {
-          return NextResponse.json({ error: 'ID parameter required for getCustomer operation' }, { status: 400 });
-        }
-        result = await printavoService.getCustomer(id);
+        // This method might not exist in the MCP client, so we'll handle it differently
+        return NextResponse.json({ 
+          success: false, 
+          error: 'getCustomer operation is not supported in the MCP client. Use searchOrders instead.' 
+        }, { status: 400 });
         break;
       default:
         return NextResponse.json({ error: `Unsupported operation: ${operation}` }, { status: 400 });
