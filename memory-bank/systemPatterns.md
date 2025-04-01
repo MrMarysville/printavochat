@@ -311,3 +311,235 @@ This pattern ensures:
 2. Important warnings remain visible
 3. Clean test output without noise from dependencies
 4. Minimal interference with Node.js warning system
+
+# Planned Architecture Migration: OpenAI Agents SDK
+
+We are planning to migrate from the current MCP server architecture to a more powerful and maintainable OpenAI Agents SDK architecture. This will replace the current MCP servers with dedicated agents that provide similar functionality while offering better integration with OpenAI's ecosystem.
+
+```mermaid
+graph LR
+    User[User Interface] --> API[API Gateway]
+    API --> Chat[Chat Service]
+    API --> Printavo[Printavo Service]
+    Chat --> NLP[Natural Language Processing]
+    Chat --> Context[Context Manager]
+    NLP --> AgentManager[Agent Manager]
+    API --> AgentManager
+    AgentManager --> PrintavoAgent[Printavo Agent]
+    AgentManager --> SanMarAgent[SanMar Agent]
+    AgentManager --> SanMarFTPAgent[SanMar FTP Agent]
+    PrintavoAgent --> PrintavoAPI[Printavo API]
+    SanMarAgent --> SanMarAPI[SanMar API]
+    SanMarFTPAgent --> SanMarFTP[SanMar FTP]
+    Context --> MemoryBank[Memory Bank]
+```
+
+**New Components:**
+
+1. **Agent Manager:**
+   - Coordinates between multiple agents
+   - Manages state and context sharing
+   - Handles error recovery and fallbacks
+   - Provides unified interface for all agent operations
+
+2. **Printavo Agent:**
+   - Handles all GraphQL operations with Printavo API
+   - Implements authentication and request formatting
+   - Provides structured error handling and retries
+   - Offers high-level composite operations
+
+3. **SanMar Agent:**
+   - Manages SOAP communication with SanMar APIs
+   - Handles product lookups and inventory checks
+   - Implements caching for performance
+   - Provides structured error handling
+
+4. **SanMar FTP Agent:**
+   - Manages secure file transfers with SanMar FTP
+   - Handles file parsing and validation
+   - Implements secure storage for files
+   - Provides organized file management
+
+**Key Technical Decisions:**
+
+- **OpenAI Agents SDK:** Framework for creating and orchestrating AI agents
+- **Agent Function Calling:** Method for structured interaction with external systems
+- **TypeScript:** Strong typing for agent interfaces and function definitions
+- **Unified Error Handling:** Consistent approach across all agents
+- **Centralized Logging:** Comprehensive monitoring across agent operations
+- **Custom Agent Extensions:** Specialized functionality for domain-specific operations
+
+**Architecture Benefits:**
+
+1. **Improved Maintainability:**
+   - Unified framework for all external integrations
+   - Consistent patterns across different services
+   - Better separation of concerns
+
+2. **Enhanced Capabilities:**
+   - More powerful context handling
+   - Better state management for multi-step operations
+   - Improved error recovery and retry mechanisms
+
+3. **Future-Proof Design:**
+   - Leverages OpenAI's ongoing agent improvements
+   - Easier to extend with new capabilities
+   - More scalable for additional integrations
+
+4. **Better Performance:**
+   - Optimized request handling
+   - Intelligent caching strategies
+   - Reduced latency through parallel operations
+
+# OpenAI Assistants Pattern
+
+We've implemented a new architectural pattern using the OpenAI Assistants API for more reliable and contextual interactions with Printavo.
+
+```mermaid
+graph TD
+    subgraph "Client Layer"
+        UI[Chat Interface]
+        UI --> API[API Gateway]
+    end
+    
+    subgraph "Routing Layer"
+        API --> FeatureFlag{Feature Flag}
+        FeatureFlag -->|USE_OPENAI_ASSISTANTS=true| AssistantsAPI[Assistants API Flow]
+        FeatureFlag -->|USE_OPENAI_ASSISTANTS=false| LegacyFlow[Legacy Agent Flow]
+    end
+    
+    subgraph "Assistants Implementation"
+        AssistantsAPI --> AAC[Assistant Creation/Loading]
+        AAC --> Thread[Thread Management]
+        Thread --> Run[Run Assistant]
+        Run --> ToolCheck{Requires Tools?}
+        ToolCheck -->|Yes| ToolExec[Execute Tools]
+        ToolExec --> SubmitResults[Submit Tool Results]
+        SubmitResults --> CheckCompletion
+        ToolCheck -->|No| CheckCompletion[Check Completion]
+        CheckCompletion --> GetResponse[Get Assistant Response]
+    end
+    
+    subgraph "External Systems"
+        ToolExec --> PrintavoAPI[Printavo GraphQL API]
+        PrintavoAPI --> ToolResult[Tool Results]
+        ToolResult --> SubmitResults
+    end
+    
+    GetResponse --> UI
+```
+
+## Key Components
+
+### 1. Assistant Definition and Registration
+```typescript
+export async function getPrintavoAssistant() {
+  // Check if assistant already exists in your storage
+  let assistantId = process.env.PRINTAVO_ASSISTANT_ID;
+  
+  if (!assistantId) {
+    console.log('Creating new Printavo Assistant...');
+    
+    const assistant = await openai.beta.assistants.create({
+      name: "Printavo Agent",
+      instructions: "You are a Printavo management assistant...",
+      model: "gpt-4o",
+      tools: printavoTools
+    });
+    
+    assistantId = assistant.id;
+    console.log(`Created assistant with ID: ${assistantId}`);
+  }
+  
+  return assistantId;
+}
+```
+
+### 2. Thread Management Pattern
+```typescript
+// Create a new thread for this session
+const thread = await this.openai.beta.threads.create();
+this.threadId = thread.id;
+
+// Add user message to thread
+await this.openai.beta.threads.messages.create(
+  this.threadId!,
+  { role: "user", content: query }
+);
+```
+
+### 3. Tool Call Handling Pattern
+```typescript
+if (runStatus.status === "requires_action" && 
+    runStatus.required_action?.type === "submit_tool_outputs" && 
+    runStatus.required_action.submit_tool_outputs.tool_calls) {
+  const toolCalls = runStatus.required_action.submit_tool_outputs.tool_calls;
+  const toolOutputs = [];
+  
+  for (const toolCall of toolCalls) {
+    const functionName = toolCall.function.name;
+    const functionArgs = JSON.parse(toolCall.function.arguments);
+    
+    let output;
+    try {
+      // Execute the actual Printavo API call
+      const result = await executePrintavoOperation(functionName, functionArgs);
+      output = JSON.stringify(result);
+    } catch (error) {
+      output = JSON.stringify({ error: (error as Error).message });
+    }
+    
+    toolOutputs.push({
+      tool_call_id: toolCall.id,
+      output
+    });
+  }
+  
+  // Submit tool outputs back to the assistant
+  await this.openai.beta.threads.runs.submitToolOutputs(
+    this.threadId!,
+    run.id,
+    { tool_outputs: toolOutputs }
+  );
+}
+```
+
+### 4. Feature Flag Integration Pattern
+```typescript
+// Check if we should use the new OpenAI Assistants API
+const useAssistantsApi = process.env.USE_OPENAI_ASSISTANTS === 'true';
+
+if (useAssistantsApi) {
+  // Process with OpenAI Assistants API
+  // ...
+} else {
+  // Process through legacy natural language interface
+  // ...
+}
+```
+
+## Benefits of This Pattern
+
+1. **Separation of Concerns**: Each component has a clear responsibility
+   - Assistant creation/management
+   - Thread lifecycle management
+   - Tool execution
+   - Response handling
+
+2. **Progressive Enhancement**: Feature flag allows for gradual rollout
+   - Easy A/B testing
+   - Safe fallback to legacy system
+
+3. **Stateful Conversations**: Thread management enables persistent context
+   - User can continue conversations across interactions
+   - Assistant remembers prior context
+
+4. **Improved Error Handling**: Dedicated error handling for each layer
+   - Tool execution errors don't break the entire flow
+   - Graceful fallbacks at each step
+
+5. **Simplified Tool Definition**: JSONSchema-based tool definitions
+   - Declarative approach to defining available tools
+   - Clear parameter specifications
+
+This pattern represents a significant architectural improvement over our previous custom agent implementation, leveraging OpenAI's purpose-built infrastructure for stateful, tool-augmented conversations.

@@ -20,6 +20,12 @@
     -   Git: Version control system.
     -   Jest: JavaScript testing framework.
 
+-   **Agent Technology (Planned):**
+    -   OpenAI Agents SDK: Framework for creating autonomous agents.
+    -   Agent Function Calling: Method for structured tool use by AI models.
+    -   Agent Memory: Persistent storage for maintaining context.
+    -   Agent Orchestration: Coordination between multiple specialized agents.
+
 **Development Setup:**
 
 1.  **Prerequisites:**
@@ -130,6 +136,10 @@
   - Multiple fallback mechanisms
   - Intelligent retry logic
   - Comprehensive error tracking
+- **MCP Server Limitations:**
+  - Currently using Model Context Protocol servers for external integrations
+  - Planning migration to OpenAI Agents SDK for improved reliability and maintenance
+  - Will phase out MCP servers completely within 6 weeks
 
 **Dependencies:**
 
@@ -176,3 +186,84 @@ MCP servers extend Cline's capabilities by providing specialized tools and acces
 - **Status:** Installed and running from project directory.
 - **Documentation:** See `memory-bank/printavo-mcp-server.md` for details on tools and usage.
 - **Integration:** The main application can optionally use this server via `lib/printavo-mcp-client.ts`, controlled by the `USE_PRINTAVO_MCP` environment variable.
+
+## OpenAI Assistants API Integration
+
+We've integrated the official OpenAI Assistants API to replace our custom agent implementation. This approach offers several technical advantages:
+
+### Technical Components:
+
+1. **OpenAI Assistants API:**
+   - **Purpose:** Provides a more reliable and contextual interface for natural language interactions
+   - **Implementation:** `agents/printavo-assistant.ts` manages Assistant creation and tool registration
+   - **Benefits:** Thread management, built-in memory, and more reliable function calling
+
+2. **Thread Management:**
+   - **Purpose:** Maintains conversation context across multiple interactions
+   - **Implementation:** `agents/agent-client.ts` handles thread creation and message management
+   - **Technical Details:** Uses `openai.beta.threads.create()` and related endpoints
+
+3. **Tool Definitions:**
+   - **Purpose:** Defines functions that the Assistant can call to interact with Printavo
+   - **Format:** JSONSchema-compatible function definitions with parameters
+   - **Execution:** `executePrintavoOperation()` converts tool calls to GraphQL queries
+
+4. **Environment Configuration:**
+   - **Variables:** 
+     - `USE_OPENAI_ASSISTANTS=true` - Enables the Assistants API integration
+     - `PRINTAVO_ASSISTANT_ID` - Stores the ID of the created Assistant for reuse
+   - **Implementation:** Both `.env` and `.env.local` files store these variables
+
+### Technical Architecture:
+
+```mermaid
+graph TD
+    User[User] --> ChatUI[Chat UI]
+    ChatUI --> ChatAPI[Chat API]
+    ChatAPI --> AssistantCheck{USE_OPENAI_ASSISTANTS?}
+    AssistantCheck -->|Yes| PrintavoAgentClient[PrintavoAgentClient]
+    AssistantCheck -->|No| NLInterface[Legacy NL Interface]
+    PrintavoAgentClient --> OpenAI[OpenAI Assistants API]
+    OpenAI --> ToolCalls{Requires Tools?}
+    ToolCalls -->|Yes| ExecutePrintavoOp[executePrintavoOperation]
+    ExecutePrintavoOp --> GraphQLClient[GraphQL Client]
+    GraphQLClient --> PrintavoAPI[Printavo API]
+    ToolCalls -->|No| Response[Assistant Response]
+    Response --> ChatUI
+    NLInterface --> AgentManager[Agent Manager]
+    AgentManager --> PrintavoAgent[Printavo Agent]
+    PrintavoAgent --> GraphQLClient
+```
+
+### Technical Considerations:
+
+1. **Backward Compatibility:**
+   - The system maintains backward compatibility with the existing custom agent implementation
+   - Controlled via an environment variable for easy toggling
+   - Allows for A/B testing and gradual migration
+
+2. **Thread Persistence:**
+   - Thread IDs can be stored in the frontend to maintain conversations across sessions
+   - Response payloads include the thread ID for client-side storage
+
+3. **Error Handling:**
+   - Comprehensive error handling for tool execution failures
+   - Graceful fallbacks when API calls encounter issues
+   - Detailed logging for troubleshooting
+
+4. **Rate Limiting:**
+   - Consideration for OpenAI API rate limits
+   - Proper handling of "requires_action" states during Assistant runs
+   - Polling with appropriate timeouts for run completion
+
+5. **Development Environment:**
+   - Git Bash command formatting issues addressed by adding Node.js to PATH
+   - PowerShell or CMD recommended for Windows users for more reliable command execution
+   - Path manipulation for cross-platform compatibility
+
+6. **Future Technical Considerations:**
+   - Potential integration with dashboard components for data retrieval
+   - Analytics implementation for tracking Assistant performance
+   - Caching strategies for frequently used Assistant responses
+
+This implementation represents a significant technical advancement over our custom agent system, leveraging OpenAI's purpose-built infrastructure for more reliable and contextual AI interactions.
