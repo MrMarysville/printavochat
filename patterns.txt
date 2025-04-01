@@ -1,0 +1,10 @@
+BEGIN.*PRIVATE KEY
+ssh-rsa
+-----BEGIN RSA PRIVATE KEY-----
+password
+secret
+credential
+token
+SANMAR_PASSWORD
+SANMAR_FTP_PASSWORD
+PRINTAVO_TOKEN 
