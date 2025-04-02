@@ -15,6 +15,17 @@ An AI-powered chat interface for Printavo that allows users to interact with the
 - 🔊 Realtime voice conversations
 - 📱 Responsive design
 
+### Template System
+
+Our application includes a powerful quote template system to speed up order creation:
+
+- **Pre-filled Products**: Templates contain standard products, quantities, and pricing
+- **Quick Creation**: Create quotes in seconds with "Create a quote for [customer] using [template]"
+- **Customization**: Easily modify template-based quotes to meet specific customer needs
+- **Template Saving**: Save any quote as a reusable template
+
+See [TEMPLATES.md](TEMPLATES.md) for complete documentation on using the template system.
+
 ## Tech Stack
 
 - Next.js 13+ (App Router)

@@ -18,6 +18,8 @@ export function MainNav() {
     { href: '/orders', label: 'Orders' },
     { href: '/customers', label: 'Customers' },
     { href: '/chat', label: 'Chat Assistant' },
+    { href: '/sanmar', label: 'SanMar' },
+    { href: '/agent-chat', label: 'Agent Chat' },
   ];
   
   return (

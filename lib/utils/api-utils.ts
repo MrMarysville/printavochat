@@ -74,8 +74,9 @@ export function getApiEndpoint(path: string = ''): string {
  * Get the GraphQL endpoint
  */
 export function getGraphQLEndpoint(): string {
-  // GraphQL endpoint is the base URL for Printavo API v2
-  return getBaseApiUrl();
+  // GraphQL endpoint is the base URL + /graphql
+  const baseUrl = getBaseApiUrl();
+  return `${baseUrl}/graphql`;
 }
 
 /**

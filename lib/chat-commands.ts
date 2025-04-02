@@ -2,6 +2,7 @@ import { OrdersAPI } from './printavo-api';
 import { logger } from './logger';
 import { QuoteCreateInput, LineItemCreateInput, LineItemGroupCreateInput, LineItemGroupWithItemsInput, ImprintInput } from './types';
 import { printavoService } from './printavo-service';
+import { AgentService } from './agent-service';
 
 type ChatCommandResult = {
   success: boolean;
@@ -630,33 +631,50 @@ async function addLineItemToQuote(itemText: string): Promise<ChatCommandResult> 
   if (style) {
     try {
       logger.info(`[ChatCommands] Looking up SanMar style: ${style}, color: ${color || 'any'}`);
-      // @ts-ignore - Assume global use_mcp_tool exists and is typed correctly elsewhere
-      const sanmarResult = await use_mcp_tool('sanmar-mcp-server', 'get_sanmar_product_info', {
-        style: style,
-        ...(color && { color: color }) // Only include color if it exists
-      });
-
-      // The tool returns an array of product variants. Find the best match or use the first one.
-      if (Array.isArray(sanmarResult) && sanmarResult.length > 0) {
-        // Try to find an exact match for color if provided
-        let productData = sanmarResult.find(variant =>
-          variant?.productBasicInfo?.color?.toLowerCase() === color?.toLowerCase()
-        );
+      
+      // Use the agent service instead of MCP tool
+      const sanmarResult = await AgentService.getProductInfo(style, color);
+      
+      if (sanmarResult.success && sanmarResult.data) {
+        // Extract product information from the agent response
+        const productData = sanmarResult.data;
         
-        // If no exact color match, use the first result
-        if (!productData) {
-          productData = sanmarResult[0];
-        }
-
-        if (productData?.productBasicInfo) {
-          sanmarProductName = productData.productBasicInfo.productTitle || productData.productBasicInfo.style; // Fallback to style if title missing
-          sanmarProductDescription = productData.productBasicInfo.productDescription;
-          logger.info(`[ChatCommands] Found SanMar product: ${sanmarProductName}`);
-        } else {
-           logger.warn(`[ChatCommands] SanMar lookup for style ${style} returned data but missing productBasicInfo.`);
+        sanmarProductName = productData.productName || productData.productId;
+        sanmarProductDescription = productData.description;
+        
+        logger.info(`[ChatCommands] Found SanMar product: ${sanmarProductName}`);
+        
+        // Check for inventory availability if we have product info
+        try {
+          const availabilityResult = await AgentService.checkProductAvailability(style, color);
+          
+          if (availabilityResult.success && availabilityResult.data) {
+            const isAvailable = availabilityResult.data.isAvailable;
+            
+            // Add availability information to the description
+            if (sanmarProductDescription) {
+              sanmarProductDescription += ` `;
+            } else {
+              sanmarProductDescription = '';
+            }
+            
+            sanmarProductDescription += `Availability: ${isAvailable ? 'In stock' : 'Limited stock or backordered'}`;
+            
+            // If we have inventory details, add them
+            if (availabilityResult.data.inventory?.inventoryLevels?.length > 0) {
+              const totalInventory = availabilityResult.data.inventory.inventoryLevels.reduce(
+                (sum: number, level: any) => sum + (level.quantity || 0), 
+                0
+              );
+              sanmarProductDescription += ` (${totalInventory} units total)`;
+            }
+          }
+        } catch (availabilityError) {
+          logger.warn(`[ChatCommands] Error checking availability for style ${style}: ${availabilityError instanceof Error ? availabilityError.message : String(availabilityError)}`);
+          // Continue without availability info
         }
       } else {
-        logger.warn(`[ChatCommands] SanMar lookup for style ${style} did not return a valid product array. Result: ${JSON.stringify(sanmarResult)}`);
+        logger.warn(`[ChatCommands] SanMar lookup for style ${style} did not return valid product data. Error: ${sanmarResult.error}`);
       }
     } catch (error) {
       logger.error(`[ChatCommands] Error looking up SanMar style ${style}: ${error instanceof Error ? error.message : String(error)}`);

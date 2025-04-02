@@ -1,0 +1,112 @@
+import { Agent } from './agent-base';
+import { PrintavoAgent } from './printavo';
+import { SanMarAgent } from './sanmar';
+import { SanMarFTPAgent } from './sanmar-ftp';
+import '../lib/env'; // Ensure environment variables are loaded
+
+// Mapping of operation names to better handle error messages
+const KNOWN_OPERATIONS = {
+  'sanmar': ['get_product_info', 'get_inventory', 'get_product_media', 'get_product_pricing', 'check_product_availability'],
+  'printavo': ['get_account', 'get_order', 'search_orders', 'list_orders', 'get_customer', 'create_quote'],
+  'sanmarFTP': ['download_file', 'list_files', 'download_and_parse_inventory']
+};
+
+/**
+ * The AgentManager is responsible for coordinating between multiple agents
+ * and providing a unified interface for all agent operations.
+ */
+export class AgentManager {
+  private agents: Record<string, Agent> = {};
+  
+  constructor() {
+    try {
+      // Initialize all required agents with better error handling
+      this.agents.printavo = new PrintavoAgent();
+      console.log('PrintavoAgent initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize PrintavoAgent:', error);
+    }
+    
+    try {
+      this.agents.sanmar = new SanMarAgent();
+      console.log('SanMarAgent initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize SanMarAgent:', error);
+    }
+    
+    try {
+      this.agents.sanmarFTP = new SanMarFTPAgent();
+      console.log('SanMarFTPAgent initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize SanMarFTPAgent:', error);
+    }
+  }
+
+  /**
+   * Execute an operation on an agent.
+   * The operation format is "agent_operation", e.g. "printavo_get_order".
+   */
+  async executeOperation(operation: string, params: any = {}): Promise<any> {
+    console.log(`AgentManager.executeOperation called with operation: ${operation}`);
+    
+    const [agentName, operationName] = operation.split('_', 2);
+    
+    if (!agentName || !operationName) {
+      throw new Error(`Invalid operation format: ${operation}. Expected format: agent_operation`);
+    }
+    
+    // Check if agent exists
+    const agent = this.agents[agentName];
+    if (!agent) {
+      const availableAgents = Object.keys(this.agents).join(', ');
+      throw new Error(`Agent not found: ${agentName}. Available agents: ${availableAgents}`);
+    }
+    
+    // For template operations, make sure they're prefixed with "quote_"
+    if (operationName.includes('template') && !operation.includes('quote_template')) {
+      // Convert operations like "printavo_list_templates" to "printavo_list_quote_templates"
+      const fullOperation = operation.replace(`${agentName}_`, `${agentName}_quote_`);
+      return agent.executeOperation(fullOperation, params);
+    }
+    
+    // Check if this is a known operation
+    if (KNOWN_OPERATIONS[agentName] && !KNOWN_OPERATIONS[agentName].includes(operationName)) {
+      const availableOps = KNOWN_OPERATIONS[agentName].join(', ');
+      throw new Error(`Unknown operation: ${operationName} for agent ${agentName}. Available operations: ${availableOps}`);
+    }
+    
+    console.log(`Executing operation ${operationName} on agent ${agentName} with params:`, params);
+    return agent.executeOperation(operationName, params);
+  }
+
+  /**
+   * Create a quote with product lookup
+   * This is a composite operation that uses multiple agents
+   */
+  async createQuoteWithProductLookup(customerInfo: any, productDetails: any) {
+    // 1. Use SanMar agent to lookup product information
+    const products = await this.agents.sanmar.lookupProducts(productDetails);
+    
+    // 2. Use Printavo agent to create a quote with the products
+    return this.agents.printavo.createQuote(customerInfo, products);
+  }
+
+  /**
+   * Get the status of all agents.
+   */
+  getStatus(): Record<string, any> {
+    const status: Record<string, any> = {};
+    
+    for (const [name, agent] of Object.entries(this.agents)) {
+      status[name] = {
+        status: agent.getStatus()
+      };
+    }
+    
+    return status;
+  }
+}
+
+export { PrintavoAgent } from './printavo';
+export { SanMarAgent } from './sanmar';
+export { SanMarFTPAgent } from './sanmar-ftp'; 

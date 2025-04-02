@@ -218,6 +218,11 @@ export interface PrintavoOrder {
     previewText?: string;
     updatedAt?: string;
   };
+  nickname?: string; // Added field from Supabase schema
+  tags?: any; // Added field from Supabase schema (JSONB maps to any/unknown/object)
+  totalQuantity?: number; // Added field from Supabase schema
+  publicUrl?: string; // Added field from Supabase schema
+  workorderUrl?: string; // Added field from Supabase schema
   // Add other fields as needed
 }
 

@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchRecentOrders, fetchOrdersChartData, fetchRevenueChartData } from '@/lib/graphql-client';
 import { executeGraphQL } from '@/lib/printavo-api';
-import { printavoMcpClient } from '@/lib/printavo-mcp-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,6 +16,8 @@ import { logger } from '@/lib/logger';
 import { useToast } from '@/components/ui/use-toast';
 import SalesChart from '@/components/dashboard/SalesChart';
 import PrintavoConnectionStatus from '@/components/dashboard/PrintavoConnectionStatus';
+import { AgentService } from '@/lib/agent-service';
+import { RecentOrdersSummary } from '@/components/dashboard/RecentOrdersSummary';
 
 type Order = {
   id: string;
@@ -81,10 +82,10 @@ export default function Dashboard() {
       try {
         const result = await fetchRecentOrders();
         
-        // If we got empty results (API error), use mock data instead
+        // If we got empty results (API error), display error instead of using mock data
         if (!result || result.length === 0) {
-          logger.warn('Received empty results from Printavo API, using fallback mock data');
-          return generateMockData();
+          logger.warn('Received empty results from Printavo API');
+          throw new Error("Can't retrieve data");
         }
         
         return result;
@@ -99,27 +100,33 @@ export default function Dashboard() {
         // Show a non-intrusive toast notification about the API error
         toast({
           title: 'API Connection Issue',
-          description: 'Using sample data while we reconnect to Printavo',
+          description: "Can't retrieve data from Printavo",
           variant: 'destructive',
         });
         
-        // Return mock data as fallback
-        return generateMockData();
+        // Throw error instead of returning mock data
+        throw new Error("Can't retrieve data");
       }
     } catch (error) {
       // This should catch any errors in the mock data generation
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Dashboard error:', errorMessage);
-      setError('Failed to load orders data. Please refresh the page.');
+      setError('Can\'t retrieve data');
       
       // Return empty array as last resort
       return [];
     }
-  }, [generateMockData, toast]);
+  }, [toast]);
 
   // Handle data changes
   const handleDataChanges = useCallback((newData: Order[], changes: DataChanges<Order>) => {
-    setOrders(newData);
+    // Filter out orders with "quote" or "completed" statuses
+    const filteredOrders = newData.filter(order => {
+      const statusName = order.status?.toLowerCase() || '';
+      return !statusName.includes('quote') && !statusName.includes('completed');
+    });
+    
+    setOrders(filteredOrders);
     setLastRefreshed(new Date());
     setLoading(false);
     setHasNewUpdates(false);
@@ -193,8 +200,15 @@ export default function Dashboard() {
           const result = await fetchOrders();
           
           logger.info(`Loaded ${result.length} orders for dashboard`);
+          
+          // Filter out orders with "quote" or "completed" statuses
+          const filteredOrders = result.filter(order => {
+            const statusName = order.status?.toLowerCase() || '';
+            return !statusName.includes('quote') && !statusName.includes('completed');
+          });
+          
           // Make sure orders are sorted according to user preference
-          const sortedOrders = result.sort((a: Order, b: Order) => {
+          const sortedOrders = filteredOrders.sort((a: Order, b: Order) => {
             try {
               const dateA = new Date(a.date).getTime();
               const dateB = new Date(b.date).getTime();
@@ -210,83 +224,14 @@ export default function Dashboard() {
           setLastRefreshed(new Date());
           setLoading(false);
         } catch (err) {
-          // Specific handling for the "No operation named" error
+          // Display error message
           const errorMessage = err instanceof Error ? err.message : String(err);
-          
-          if (errorMessage.includes('No operation named')) {
-            console.error('GraphQL operation name error detected, attempting recovery');
-            
-            // Try again with a more explicit approach using executeGraphQL directly
-            try {
-              const operationName = "GetDashboardOrders";
-              const query = `
-                query ${operationName} {
-                  invoices(first: 50, sortDescending: true) {
-                    edges {
-                      node {
-                        id
-                        visualId
-                        nickname
-                        createdAt
-                        total
-                        contact {
-                          id
-                          fullName
-                          email
-                        }
-                        status {
-                          id
-                          name
-                        }
-                      }
-                    }
-                  }
-                }
-              `;
-              
-              // Use executeGraphQL directly with explicit operation name
-              const data = await executeGraphQL(query, {}, operationName);
-              
-              if (data && data.invoices && data.invoices.edges) {
-                // Transform the data
-                const recoveredOrders = data.invoices.edges.map((edge: any) => ({
-                  id: edge.node.id,
-                  name: edge.node.nickname || `Order #${edge.node.visualId || 'Unknown'}`,
-                  customer: {
-                    id: edge.node.contact?.id || 'unknown',
-                    name: edge.node.contact?.fullName || 'Unknown Customer'
-                  },
-                  date: edge.node.createdAt || new Date().toISOString(),
-                  status: edge.node.status?.name || 'Unknown Status',
-                  total: parseFloat(edge.node.total || '0')
-                }));
-                
-                // Sort and update state
-                const sortedOrders = recoveredOrders.sort((a: Order, b: Order) => {
-                  const dateA = new Date(a.date).getTime();
-                  const dateB = new Date(b.date).getTime();
-                  return sortDirection === 'newest' ? dateB - dateA : dateA - dateB;
-                });
-                
-                setOrders(sortedOrders);
-                setLastRefreshed(new Date());
-                setLoading(false);
-                logger.info('Successfully recovered from operation name error');
-                return;
-              }
-            } catch (recoveryErr) {
-              console.error('Recovery attempt failed:', recoveryErr);
-            }
-          }
-          
-          // If we reach here, either it wasn't an operation name error or recovery failed
           console.error('Initial load error:', err);
-          setError('Failed to load initial data: ' + (err instanceof Error ? err.message : String(err)));
+          setError('Can\'t retrieve data');
           setLoading(false);
           
-          // Use mock data as last resort
-          const mockData = generateMockData();
-          setOrders(mockData);
+          // Set empty orders array instead of using mock data
+          setOrders([]);
         }
       })();
     }
@@ -297,7 +242,7 @@ export default function Dashboard() {
         pollerRef.current.stop();
       }
     };
-  }, [fetchOrders, handleDataChanges, handlePollingError, isAutoRefreshEnabled, loading, orders.length, refreshInterval, sortDirection, generateMockData]);
+  }, [fetchOrders, handleDataChanges, handlePollingError, isAutoRefreshEnabled, loading, orders.length, refreshInterval, sortDirection]);
 
   // Update polling interval when changed
   useEffect(() => {
@@ -370,11 +315,13 @@ export default function Dashboard() {
   // Calculate summary metrics from the actual orders
   const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
   const averageOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
-  const pendingOrders = orders.filter(order => 
-    order.status.toLowerCase() !== 'completed' && 
-    order.status.toLowerCase() !== 'delivered' && 
-    order.status.toLowerCase() !== 'closed'
-  );
+  const pendingOrders = orders.filter(order => {
+    const statusLower = order.status.toLowerCase();
+    return !statusLower.includes('completed') && 
+           !statusLower.includes('delivered') && 
+           !statusLower.includes('closed') &&
+           !statusLower.includes('quote');
+  });
   
   // Improved sorting with error handling for recent orders
   const recentOrders = React.useMemo(() => {
@@ -452,7 +399,7 @@ export default function Dashboard() {
         
         try {
           // Try using the MCP client to search for orders (last 100 orders)
-          const mcpResult = await printavoMcpClient.searchOrders("", 100);
+          const mcpResult = await AgentService.searchOrders("");
           logger.info('Using MCP client for chart data');
           
           if (mcpResult.success && mcpResult.data && Array.isArray(mcpResult.data)) {
@@ -726,84 +673,19 @@ export default function Dashboard() {
                 <TabsTrigger value="charts">Analytics</TabsTrigger>
               </TabsList>
               <TabsContent value="recent-orders" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle>Recent Orders</CardTitle>
-                        <CardDescription>Showing your {recentOrders.length} most recent orders from Printavo</CardDescription>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-500">Sort by:</span>
-                        <select
-                          value={sortDirection}
-                          onChange={(e) => setSortDirection(e.target.value as 'newest' | 'oldest')}
-                          className="text-sm border rounded px-2 py-1"
-                        >
-                          <option value="newest">Newest First</option>
-                          <option value="oldest">Oldest First</option>
-                        </select>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {loading ? (
-                      <div className="flex justify-center p-4">
-                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    ) : recentOrders.length === 0 ? (
-                      <div className="text-center py-4 text-gray-500">
-                        No orders found. Create an order in Printavo to see it here.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="pb-3 text-left">Order</th>
-                              <th className="pb-3 text-left">Customer</th>
-                              <th className="pb-3 text-left">Status</th>
-                              <th className="pb-3 text-left">Date</th>
-                              <th className="pb-3 text-right">Amount</th>
-                              <th className="pb-3 text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {recentOrders.map((order) => (
-                              <tr key={order.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3">
-                                  <Link href={`/orders/${order.id}`} className="font-medium text-blue-600 hover:underline">
-                                    {order.name}
-                                  </Link>
-                                </td>
-                                <td className="py-3">{order.customer.name}</td>
-                                <td className="py-3">
-                                  <Badge className={getStatusColor(order.status)}>
-                                    {order.status}
-                                  </Badge>
-                                </td>
-                                <td className="py-3" title={new Date(order.date).toLocaleString()}>
-                                  {formatRelativeTime(order.date)}
-                                </td>
-                                <td className="py-3 text-right">${order.total.toFixed(2)}</td>
-                                <td className="py-3 text-right">
-                                  <Link href={`/orders/${order.id}`}>
-                                    <Button variant="ghost" size="sm">View</Button>
-                                  </Link>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </CardContent>
-                  <CardFooter>
-                    <Link href="/orders" className="text-blue-600 hover:underline text-sm">
-                      View all orders
-                    </Link>
-                  </CardFooter>
-                </Card>
+                <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+                  <RecentOrdersSummary 
+                    orders={recentOrders}
+                    isLoading={loading}
+                    error={!!error}
+                    onViewOrder={(orderId) => {
+                      window.location.href = `/orders/${orderId}`;
+                    }}
+                    onViewAll={() => {
+                      window.location.href = '/orders';
+                    }}
+                  />
+                </div>
               </TabsContent>
               <TabsContent value="charts" className="space-y-4">
                 <SalesChart 

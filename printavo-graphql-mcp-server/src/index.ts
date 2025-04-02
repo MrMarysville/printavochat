@@ -27,8 +27,8 @@ async function executePrintavoGraphQL(query: string, variables: Record<string, a
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'email': PRINTAVO_EMAIL!, // Non-null assertion as we check at startup
-        'token': PRINTAVO_TOKEN!, // Non-null assertion
+        'email': PRINTAVO_EMAIL!,
+        'token': PRINTAVO_TOKEN!,
       },
       body: JSON.stringify({ query, variables }),
     });
@@ -498,3 +498,5 @@ server.server.connect(transport)
   .catch((err) => {
     console.error('Error starting Printavo GraphQL MCP server:', err);
   });
+
+

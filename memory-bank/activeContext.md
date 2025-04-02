@@ -1,45 +1,71 @@
 # Active Context – Printavo Chat Application (Updated)
 
-## Accomplishments to Date:
-- **OpenAI Assistants API Implementation**: Successfully implemented the OpenAI Assistants API for Printavo integration, replacing the custom agent architecture with the official API.
-- **Agent-Client Interface Created**: Developed a proper client interface for the OpenAI Assistants API that handles thread management and tool calling.
-- **Printavo Tool Functions**: Created a comprehensive set of tool functions that allow the Assistant to interact with the Printavo GraphQL API.
-- **Toggle Mechanism**: Added environment variables (`USE_OPENAI_ASSISTANTS=true`, `PRINTAVO_ASSISTANT_ID`) to easily switch between custom agents and OpenAI Assistants.
-- **Chat API Updated**: Modified the chat API route to use the OpenAI Assistants when enabled.
-- **Documentation Added**: Updated the agents README to include information about the OpenAI Assistants integration.
-- **Code Successfully Pushed to GitHub**: The implementation is now safely stored in the GitHub repository.
+## Latest Updates:
+- **OpenAI Assistants API v2 Custom Assistant Messages**: Successfully implemented the custom assistant messages feature:
+  - Added addAssistantMessage method to PrintavoAgentClient
+  - Created specialized addOrderSummary method for structured order information
+  - Enhanced API route to support assistant-role message creation
+  - Implemented in AgentService for easy frontend access
+  - Added test script to verify functionality
+- **OpenAI Assistants API v2 tool_choice Implementation**: Successfully implemented the tool_choice parameter feature:
+  - Updated agent-client.ts to accept toolChoice parameter in processQuery method
+  - Added a specialized getOrderByVisualId method that uses directed tool execution
+  - Enhanced API route to support both standard and directed tool approaches
+  - Implemented backward compatibility for existing code
+- **OpenAI Assistants API Migration**: Successfully migrated from Assistants API v1 to v2 with the following changes:
+  - Updated API headers from 'OpenAI-Beta: assistants=v1' to 'OpenAI-Beta: assistants=v2'
+  - Modified code to use openai.v2.assistants namespace instead of openai.beta.assistants
+  - Created a new assistant with the v2 API and updated the PRINTAVO_ASSISTANT_ID
+  - Verified the configuration with test-openai-assistants.js
+- **Environment Configuration**: Updated `.env` file to match the structure in `.env.example` while preserving existing API keys and credentials.
+- **OpenAI API Key**: Fixed issues with the API key format and successfully tested with OpenAI's models API.
+- **SanMar Integration**: Verified all SanMar API and FTP credentials are properly configured.
+- **Supabase Schema Update**: Added `printavo_..._id` columns to `customers`, `quotes`, `line_items`. Created `orders` table. Added relevant indexes.
+- **Supabase Data Population**: Implemented basic data saving logic in `lib/supabase-client.ts` (upserting customers, quotes, orders). Modified `agents/printavo-assistant.ts` to call these save functions after Printavo API calls.
+- **Expert Quote Agent Tool**: Defined `create_quote_natural_language` tool for the Assistant. Added placeholder handling logic in `agents/printavo-assistant.ts`. Updated `AgentStore` to ensure Assistant definition stays synchronized.
+- **Printavo API Call Verification**: Corrected mutation names (`customerCreate`, `quoteCreate`) in `agents/printavo-assistant.ts` based on documentation.
 
 ## Current Implementation Status:
-- **Assistants API**: Fully implemented and ready for testing.
+- **Assistants API v2**: Fully implemented and verified working. (Using `openai.beta.assistants` namespace based on type resolution).
+- **tool_choice Parameter**: Implemented and ready for testing with visual ID searches.
+- **Custom Assistant Messages**: Implemented and ready for testing with order summaries.
 - **GitHub Repository**: Updated with latest changes.
-- **Bash Environment**: Fixed PATH setup to properly run Node.js commands in Git Bash.
 - **Environment Variables**: Configuration parameters in place in both .env and .env.local files.
+- **OpenAI Models**: Using the latest models (gpt-4o for chat, whisper-1 for transcription).
+- **Assistant ID**: New v2 Assistant created with ID: asst_LXmLzDsVcjbNJsyLyW7NYODZ.
 
-## Known Issues That Need Fixing:
-1. **Assistant ID Not Set**: The `PRINTAVO_ASSISTANT_ID` variable is empty and needs to be populated after first run.
-2. **Git Bash Command Issues**: Still having some issues with command formatting in Git Bash, particularly with commands that include Windows paths.
-3. **Integration Testing**: Need to thoroughly test the OpenAI Assistants integration with real data.
-4. **Dashboard Integration**: The dashboard currently uses direct API calls and doesn't leverage the OpenAI Assistants for data retrieval.
-5. **ThreadID Management**: Need to implement proper frontend thread ID storage to maintain conversation context across page refreshes.
+## OpenAI Assistants v2 Features Implementation
+The implementation now leverages several key v2 API features:
+
+1. **tool_choice Parameter (Implemented)**
+   - Added support in agent-client.ts for specifying a specific tool to use 
+   - Created high-level methods like getOrderByVisualIdDirected for better developer experience
+   - Updated API routes to handle directed tool execution
+   - Implemented with backward compatibility for existing code
+
+2. **Custom Assistant Messages (Implemented)**
+   - Added addAssistantMessage method for creating assistant role messages
+   - Created specialized addOrderSummary method for order information
+   - Enhanced API route to support these operations
+   - Implemented with documentation and test script
+
+3. **Planned Next Implementations**
+   - Token usage control
+   - Vector store for product catalog search
+   - Model configuration parameters
 
 ## Next Steps:
-1. **First Run and Assistant ID**: Run the application with `npm run dev` to create an Assistant and capture its ID.
-2. **Update Environment Variables**: Add the new Assistant ID to `.env` and `.env.local` files.
-3. **Testing with Real Printavo Data**: Thoroughly test the integration with real queries to ensure proper function calling.
-4. **Thread Management**: Implement a solution to store and retrieve thread IDs in the frontend for conversation continuity.
-5. **Performance Monitoring**: Add telemetry specifically for the Assistants API to track performance and reliability.
-
-## Comparison vs. Previous Implementation:
-- **Previous**: Custom agent framework with manual function calling through Chat Completions API
-- **Current**: Official OpenAI Assistants API with proper thread management and tool calling
-- **Benefits**: Better conversation context, more reliable tool calling, built-in memory management
-
-## Command Line Issues:
-Running the application in Git Bash still faces some challenges:
-- Path formatting issues with Windows backslashes
-- Command prefixing with unexpected `[200~` characters
-- Fixed by adding Node.js to PATH: `export PATH=$PATH:/c/nvm4w/nodejs`
-- Alternative: Use PowerShell or CMD for more reliable command execution
+1. **Testing with Real Printavo Data**: Thoroughly test the integration with real queries to ensure proper function calling.
+2. **Thread Management**: Implement a solution to store and retrieve thread IDs in the frontend for conversation continuity.
+3. **Performance Monitoring**: Add telemetry specifically for the Assistants API to track performance and reliability.
+4. **Update Documentation**: Update all relevant documentation to reflect v2 API usage.
+5. **Implement Additional v2 Features**: Continue implementing remaining v2 features like token usage control and vector store.
+6. **Refine Supabase Integration**:
+    - Improve data mapping in `mapPrintavo...ToSupabase` functions.
+    - Implement customer linking (Printavo ID -> Supabase UUID) for quotes/orders.
+    - Implement saving/updating line items in Supabase.
+7. **Implement NL Quote Parsing**: Replace placeholder logic for `create_quote_natural_language` tool with actual parsing (e.g., using LLM or regex).
+8. **Testing**: Thoroughly test Supabase data saving and natural language quote creation.
 
 ## Technical Focus Areas:
 - Ensuring environment variables are properly set
@@ -47,8 +73,9 @@ Running the application in Git Bash still faces some challenges:
 - Properly handling errors during Assistant operations
 - Maintaining backward compatibility with existing architecture
 - Addressing Git Bash peculiarities for reliable development workflow
+- Leveraging new v2 API features like vector_store objects and tool_choice parameter
 
-These updates represent the current state of the project, with particular focus on the OpenAI Assistants integration and the remaining work to be completed.
+These updates represent the current state of the project, with particular focus on the OpenAI Assistants v2 integration and the remaining work to be completed.
 
 ## Printavo API Coverage
 The Printavo agent implementation now covers all major operations from the Printavo GraphQL API:
@@ -93,6 +120,43 @@ The Printavo agent implementation now covers all major operations from the Print
 
 All operations have been implemented with proper error handling, validation, and response formatting to ensure reliability and consistency.
 
+## OpenAI Assistants v2 Benefits
+The migration to Assistants API v2 provides several key benefits:
+- **Enhanced Retrieval**: Improved file_search tool with support for up to 10,000 files per assistant
+- **Vector Store Objects**: New API constructs for efficient file management and embeddings
+- **Token Control**: Better management of token usage with max_tokens and message limits
+- **Tool Choice Parameter**: Ability to force specific tool usage in runs
+- **Custom Assistant Messages**: Support for creating messages with assistant role
+- **Model Configuration**: Support for temperature, response_format, and top_p parameters
+- **Fine-tuned Model Support**: Compatible with fine-tuned versions of GPT-3.5 Turbo
+- **Streaming Support**: Native streaming capabilities in the API
+- **SDK Helpers**: New streaming and polling helpers in the Node.js SDK
+
+## Use Cases for Custom Assistant Messages
+The custom assistant messages feature enables several powerful use cases:
+
+1. **Structured Data Presentation**:
+   - Display formatted order summaries with consistent layout
+   - Show product catalog information in a structured format
+   - Present analytics data in a readable format
+
+2. **Conversation Management**:
+   - Insert system-generated messages to guide the conversation
+   - Provide transition messages between conversation topics
+   - Create summaries of previous interactions
+
+3. **Information Injection**:
+   - Add real-time data from external systems
+   - Insert notifications about order status changes
+   - Provide context about customer history
+
+4. **Multi-step Workflows**:
+   - Guide users through complex workflows with step instructions
+   - Provide confirmation messages for completed actions
+   - Show progress updates for long-running operations
+
+These capabilities significantly enhance the conversational experience by allowing more control over the assistant's responses and enabling more structured information presentation.
+
 ## New Enhancements
 - **Natural Language Interface**: The system now uses a sophisticated natural language interface to interpret user queries and route them to the appropriate agent functions.
 - **Telemetry Dashboard**: A new monitoring dashboard at /agent-monitor provides real-time insights into agent performance, operation success rates, and error tracking.
@@ -108,5 +172,91 @@ All operations have been implemented with proper error handling, validation, and
 - **Phase 1 (Week 1):** ✅ Environment setup and initial assessment
 - **Phase 2 (Weeks 2-3):** ✅ Core agent development for all three services
 - **Phase 3 (Week 4):** ✅ Integration and higher-level function development
-- **Phase 4 (Week 5):** ✅ Testing and validation
+- **Phase 4 (Week 5):** ✅ Testing and validation with v2 API
 - **Phase 5 (Week 6):** ✅ Deployment and documentation
+
+# Active Context - Migration to OpenAI Agents SDK
+
+## Current Progress
+
+We've started implementing the migration plan to move from the Assistants API to the OpenAI Agents SDK. The progress is as follows:
+
+### Phase 1: Setup and Exploration (Completed)
+
+- ✅ Created a Python service layer using FastAPI
+- ✅ Set up the project structure for the Python Agent Service
+- ✅ Configured environment variables and transferred API keys
+- ✅ Implemented the Printavo API client for GraphQL interactions
+- ✅ Created the agent implementation using the OpenAI Agents SDK
+- ✅ Developed API endpoints to match the current frontend expectations
+- ✅ Added testing framework and basic tests
+
+### Next Steps
+
+#### Phase 2: Core Migration
+
+1. **Install dependencies and verify setup**:
+   ```bash
+   cd python-agent-service
+   pip install -r requirements.txt
+   python run.py
+   ```
+
+2. **Update the JS client to enable feature flag**:
+   - Modify the `lib/agent-service.ts` file to add a feature flag for using the new Python service
+   - Add configuration to switch between the old and new implementations
+
+3. **Test the integration**:
+   - Make requests to the new service while it's running
+   - Verify that responses match the expected format
+   - Debug any issues that arise
+
+## Key Insights
+
+- The OpenAI Agents SDK provides a more native Python experience compared to the Assistants API
+- The SDK offers better tracing and debugging capabilities
+- Function-based tools make it easy to integrate with existing code
+- We can maintain the same API interface for a seamless transition
+
+## Current Challenges
+
+1. **Testing without installing the SDK**: Complete testing requires installing the OpenAI Agents SDK
+2. **Integration between JS frontend and Python backend**: Need to ensure proper communication
+3. **Runtime environment**: Need to decide where to host the Python service (same server or separate)
+
+## Implementation Notes
+
+### API Endpoint
+
+The main API endpoint is available at:
+```
+POST /api/agent
+```
+
+Request body:
+```json
+{
+  "query": "Show me recent orders",
+  "exclude_completed": true,
+  "exclude_quotes": true
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "error": null,
+  "data": {
+    "response": "Here are your recent orders...",
+    "usage": {
+      "prompt_tokens": 123,
+      "completion_tokens": 456,
+      "total_tokens": 579
+    },
+    "elapsed_time": 1.23
+  }
+}
+```
+
+This matches the format expected by the current frontend implementation.

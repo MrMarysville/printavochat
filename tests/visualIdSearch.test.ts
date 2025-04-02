@@ -6,6 +6,49 @@
 
 import { determineOperation } from '../lib/operations';
 import { searchOperations } from '../lib/graphql/operations/searchOperations';
+import { AgentService } from '../lib/agent-service';
+
+// Mock the AgentService responses for test stability
+jest.mock('../lib/agent-service', () => ({
+  AgentService: {
+    getOrderByVisualId: jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        id: 'TEST-9435',
+        visualId: '9435',
+        name: 'Test T-Shirt Order',
+        status: {
+          name: 'In Production'
+        },
+        customer: {
+          name: 'Test Customer',
+          email: 'test@example.com'
+        },
+        total: 245.99,
+        lineItemGroups: [
+          {
+            name: 'Custom T-Shirts',
+            lineItems: [
+              {
+                name: 'Black T-Shirt',
+                quantity: 24,
+                price: 9.50
+              }
+            ]
+          }
+        ]
+      }
+    }),
+    searchOrders: jest.fn().mockResolvedValue({
+      success: true,
+      data: []
+    }),
+    executeOperation: jest.fn().mockResolvedValue({
+      success: true,
+      data: {}
+    })
+  }
+}));
 
 describe('Visual ID Search Tests', () => {
   const visualId = '9435';

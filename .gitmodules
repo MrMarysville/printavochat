@@ -1,0 +1,3 @@
+[submodule "firecrawl-mcp"]
+	path = firecrawl-mcp
+	url = https://github.com/mendableai/firecrawl-mcp-server.git

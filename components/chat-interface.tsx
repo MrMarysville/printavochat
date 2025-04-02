@@ -22,6 +22,7 @@ import {
   MessageType,
   getMessageStyles
 } from '@/lib/types/chat';
+import { Badge } from "@/components/ui/badge";
 
 // Component for displaying file attachments
 const FileAttachment = ({ file }: { file: ChatFile }) => {
@@ -89,6 +90,127 @@ const RichFormMessage = ({ formConfig, onSubmit }: { formConfig: any, onSubmit: 
     }>
       <DynamicForm formConfig={formConfig} onSubmit={onSubmit} />
     </ErrorBoundary>
+  );
+};
+
+// Quote creation component
+const RichQuoteMessage = ({ quoteData, onUpdate }: { 
+  quoteData: any, 
+  onUpdate: (data: any, action: string) => void 
+}) => {
+  const stage = quoteData?.stage || 'initial';
+  
+  const handleAddLineItem = () => {
+    onUpdate({ action: 'add_line_item' }, 'add_line_item');
+  };
+  
+  const handleSubmitQuote = () => {
+    onUpdate({ action: 'finalize_quote' }, 'finalize_quote');
+  };
+  
+  return (
+    <div className="border border-blue-200 rounded-md p-3 bg-blue-50 w-full mt-2">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-medium text-blue-900">Quote Creation</h3>
+        <Badge variant="outline" className="bg-blue-100">
+          {stage === 'initial' ? 'Started' :
+           stage === 'customer_selected' ? 'Customer Selected' :
+           stage === 'adding_items' ? 'Adding Items' :
+           stage === 'review' ? 'Review' : 'Processing'}
+        </Badge>
+      </div>
+      
+      {quoteData?.customer && (
+        <div className="mb-3">
+          <p className="text-sm font-medium text-gray-500">Customer</p>
+          <p className="text-sm">{quoteData.customer.name}</p>
+        </div>
+      )}
+      
+      {quoteData?.lineItems && quoteData.lineItems.length > 0 && (
+        <div className="mb-3">
+          <p className="text-sm font-medium text-gray-500">Line Items</p>
+          <ul className="text-sm space-y-1">
+            {quoteData.lineItems.map((item: any, index: number) => (
+              <li key={index} className="flex justify-between p-1 hover:bg-blue-100 rounded">
+                <span>
+                  {item.quantity} x {item.product} 
+                  {item.color && ` - ${item.color}`}
+                </span>
+                <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {stage === 'adding_items' && (
+        <Button 
+          size="sm" 
+          variant="outline" 
+          className="mr-2"
+          onClick={handleAddLineItem}
+        >
+          Add Another Item
+        </Button>
+      )}
+      
+      {stage === 'review' && (
+        <div className="flex flex-col space-y-2">
+          <div className="flex justify-between text-sm font-medium">
+            <span>Total</span>
+            <span>${quoteData.total?.toFixed(2) || '0.00'}</span>
+          </div>
+          
+          <Button 
+            size="sm" 
+            className="w-full"
+            onClick={handleSubmitQuote}
+          >
+            Submit Quote
+          </Button>
+        </div>
+      )}
+      
+      {quoteData?.notes && (
+        <div className="mt-2 text-xs text-gray-500">
+          <p className="font-medium">Notes</p>
+          <p>{quoteData.notes}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Add a customer profile component
+const RichCustomerMessage = ({ customer, onCreateQuote }: { 
+  customer: any,
+  onCreateQuote?: () => void
+}) => {
+  return (
+    <div className="border border-green-200 rounded-md p-3 bg-green-50 w-full">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-medium text-green-900">{customer.name}</h3>
+        <Badge variant="outline" className="bg-green-100">Customer</Badge>
+      </div>
+      
+      <div className="space-y-1 text-sm mb-3">
+        <p><span className="font-medium">Email:</span> {customer.email}</p>
+        {customer.phone && <p><span className="font-medium">Phone:</span> {customer.phone}</p>}
+        {customer.address && <p><span className="font-medium">Address:</span> {customer.address}</p>}
+      </div>
+      
+      {onCreateQuote && (
+        <Button 
+          size="sm" 
+          variant="outline" 
+          className="w-full"
+          onClick={onCreateQuote}
+        >
+          Create Quote for {customer.name}
+        </Button>
+      )}
+    </div>
   );
 };
 
@@ -204,10 +326,199 @@ export default function ChatInterface() {
     richData?: RichMessageData;
   }> => {
     try {
+      // Try to detect if it's a customer creation message with structured data
+      if (inputMessage.includes('create customer') || 
+          inputMessage.includes('add customer') || 
+          inputMessage.includes('new customer')) {
+            
+        // Check if it contains email which is required
+        const emailMatch = inputMessage.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
+        
+        if (emailMatch) {
+          try {
+            // Extract customer data
+            const email = emailMatch[0];
+            
+            // Check if customer already exists
+            const checkResponse = await fetch('/api/messages/customer', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                action: 'check_exists',
+                email: email
+              }),
+            });
+            
+            if (!checkResponse.ok) {
+              throw new Error(`HTTP error! status: ${checkResponse.status}`);
+            }
+            
+            const checkData = await checkResponse.json();
+            
+            if (checkData.exists) {
+              // Customer exists
+              return {
+                message: `I found an existing customer with this email address: ${email}.\n\n${checkData.customer.name}\nEmail: ${email}\n${checkData.customer.phone ? `Phone: ${checkData.customer.phone}\n` : ''}${checkData.customer.address ? `Address: ${checkData.customer.address}` : ''}`,
+                richData: {
+                  type: 'customer',
+                  content: checkData.customer
+                }
+              };
+            }
+            
+            // Try to extract name
+            let name = '';
+            
+            // Look for name patterns
+            const namePatterns = [
+              /name:?\s*([^,\n]+)/i,
+              /for\s+([^,@\n]+)(?=\s+with|$|\s+at)/i,
+              /customer(?:\s+is|:)?\s+([^,@\n]+)/i,
+              /client(?:\s+is|:)?\s+([^,@\n]+)/i,
+              /new customer[:\s]+([^,@\n]+)/i
+            ];
+            
+            for (const pattern of namePatterns) {
+              const match = inputMessage.match(pattern);
+              if (match && match[1]) {
+                name = match[1].trim();
+                break;
+              }
+            }
+            
+            // Extract phone
+            const phone = extractPhone(inputMessage);
+            
+            // Extract address parts
+            const streetMatch = inputMessage.match(/(?:street|address)[:\s]+([^,\n]+)/i);
+            const cityMatch = inputMessage.match(/city[:\s]+([^,\n]+)/i);
+            const stateMatch = inputMessage.match(/state[:\s]+([^,\n]+)/i);
+            const zipMatch = inputMessage.match(/(?:zip|postal)[:\s]+([^,\n]+)/i);
+            
+            const street = streetMatch ? streetMatch[1].trim() : '';
+            const city = cityMatch ? cityMatch[1].trim() : '';
+            const state = stateMatch ? stateMatch[1].trim() : '';
+            const zip = zipMatch ? zipMatch[1].trim() : '';
+            
+            // If we have enough data (at least name and email), create the customer
+            if (name) {
+              const createResponse = await fetch('/api/messages/customer', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  action: 'create',
+                  name,
+                  email,
+                  phone,
+                  street,
+                  city,
+                  state,
+                  zip
+                }),
+              });
+              
+              if (!createResponse.ok) {
+                throw new Error(`HTTP error! status: ${createResponse.status}`);
+              }
+              
+              const createData = await createResponse.json();
+              
+              return {
+                message: `I've created a new customer for you:\n\n**${name}**\nEmail: ${email}\n${phone ? `Phone: ${phone}\n` : ''}${(street || city || state || zip) ? 'Address: ' + [street, (city && state) ? `${city}, ${state} ${zip}` : city || state || zip].filter(Boolean).join('\n') : ''}`,
+                richData: {
+                  type: 'customer',
+                  content: createData.customer
+                }
+              };
+            } else {
+              // We have an email but not enough other data
+              return {
+                message: `I can create a new customer with email ${email}. Could you please provide the customer's name?`,
+                richData: {
+                  type: 'customer_creation',
+                  content: {
+                    stage: 'need_name',
+                    email
+                  }
+                }
+              };
+            }
+          } catch (error) {
+            logger.error('Error processing customer creation:', error);
+            return {
+              message: `I had trouble processing the customer information. Please make sure to include at least a name and email address.`,
+              richData: {
+                type: 'error',
+                content: {
+                  error: error instanceof Error ? error.message : 'Unknown error'
+                }
+              }
+            };
+          }
+        }
+      }
+      
+      // Check if it might be a quote-related query
+      const lowerInput = inputMessage.toLowerCase();
+      const isQuoteQuery = lowerInput.includes('quote') || 
+                          lowerInput.includes('order') || 
+                          /pc\d+|st\d+|k\d+/i.test(inputMessage); // SanMar product codes
+      
+      if (isQuoteQuery) {
+        // Use the new messages API for potential quote creation
+        try {
+          const apiUrl = '/api/messages';
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: [
+                ...messages,
+                {
+                  id: Date.now().toString(),
+                  content: inputMessage,
+                  role: MessageRole.USER,
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          
+          // Check if this is a quote creation response
+          if (data.type === 'quote_creation') {
+            return {
+              message: data.message,
+              richData: {
+                type: 'quote_creation',
+                content: data.data
+              }
+            };
+          }
+          
+          return {
+            message: data.message,
+            richData: data.richData
+          };
+        } catch (error) {
+          logger.error('Error processing with messages API:', error);
+          throw error;
+        }
+      }
+      
       // First check if it's a Printavo query that can be processed directly
       if (inputMessage.toLowerCase().includes('visual') || 
-          inputMessage.toLowerCase().includes('order') ||
-          inputMessage.toLowerCase().includes('invoice') ||
           /^\d{4,5}$/.test(inputMessage.trim())) {
             
         // It might be a Printavo specific query, let's try our direct processing method
@@ -277,6 +588,26 @@ export default function ChatInterface() {
       logger.error('Error processing message:', error);
       throw error;
     }
+  };
+
+  // Helper function to extract phone numbers from text
+  const extractPhone = (text: string): string => {
+    // Look for phone number patterns
+    const phonePatterns = [
+      /phone:?\s*(\+?[0-9][\s-()0-9]{9,})/i,
+      /(?:^|\s|,)(\+?[0-9][\s-()0-9]{9,})(?:$|\s|,)/,
+      /(?:^|\s|,)(\([0-9]{3}\)\s*[0-9]{3}-[0-9]{4})(?:$|\s|,)/,
+      /(?:^|\s|,)([0-9]{3}-[0-9]{3}-[0-9]{4})(?:$|\s|,)/
+    ];
+    
+    for (const pattern of phonePatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+    
+    return '';
   };
 
   const handleFileUpload = async (files: File[]) => {
@@ -412,59 +743,120 @@ export default function ChatInterface() {
   };
 
   const renderMessage = (message: ChatMessage) => {
-    // Get the style information based on message role
     const styles = getMessageStyles(message.role);
     
+    // Format message content with line breaks
+    const formattedContent = message.content.split('\n').map((line, i) => (
+      <React.Fragment key={i}>
+        {line}
+        {i < message.content.split('\n').length - 1 && <br />}
+      </React.Fragment>
+    ));
+    
+    // Handle rich data display
+    let richContent = null;
+    if (message.richData) {
+      if (message.richData.type === 'order' && message.richData.content) {
+        // Display an order card
+        richContent = (
+          <div className="mt-3">
+            <RichOrderMessage 
+              order={message.richData.content}
+              onViewDetails={() => {
+                // Handle viewing order details
+                window.open(`/orders/${message.richData.content.id}`, '_blank');
+              }}
+            />
+          </div>
+        );
+      } else if (message.richData.type === 'products' && Array.isArray(message.richData.content)) {
+        // Display product gallery
+        richContent = (
+          <div className="mt-3">
+            <RichProductMessage products={message.richData.content} />
+          </div>
+        );
+      } else if (message.richData.type === 'form' && message.richData.content) {
+        // Display dynamic form
+        richContent = (
+          <div className="mt-3">
+            <RichFormMessage 
+              formConfig={message.richData.content}
+              onSubmit={(data) => {
+                // Handle form submission
+                console.log('Form data:', data);
+                setInput(`I've completed the form with: ${JSON.stringify(data)}`);
+              }}
+            />
+          </div>
+        );
+      } else if (message.richData.type === 'quote_creation' && message.richData.content) {
+        // Display quote creation UI
+        richContent = (
+          <div className="mt-3">
+            <RichQuoteMessage 
+              quoteData={message.richData.content}
+              onUpdate={(data, action) => {
+                // Handle quote updates
+                setInput(`${action}: ${JSON.stringify(data)}`);
+              }}
+            />
+          </div>
+        );
+      } else if (message.richData.type === 'customer' && message.richData.content) {
+        // Display customer information
+        richContent = (
+          <div className="mt-3">
+            <RichCustomerMessage 
+              customer={message.richData.content}
+              onCreateQuote={() => {
+                // Handle quote creation for this customer
+                setInput(`Create a quote for ${message.richData.content.name}`);
+              }}
+            />
+          </div>
+        );
+      } else if (message.richData.type === 'agent_response' && message.richData.content) {
+        // Display agent response with special formatting
+        richContent = (
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="text-xs font-medium text-blue-700 mb-2">Agent Response</div>
+            {typeof message.richData.content === 'object' && (
+              <pre className="text-xs overflow-auto max-h-60 bg-blue-100 p-2 rounded">
+                {JSON.stringify(message.richData.content, null, 2)}
+              </pre>
+            )}
+          </div>
+        );
+      }
+    }
+    
     return (
-      <div
+      <div 
         key={message.id}
-        className={`p-3 rounded-lg max-w-[80%] ${styles.containerClass} mb-2`}
+        className={`${styles.containerClass} p-3 rounded-lg max-w-[85%] mb-4`}
       >
-        <div className="flex items-center mb-1">
-          <span className="text-xs font-semibold mr-1">{styles.name}</span>
-          <span className="text-xs text-gray-500">{formatTimestamp(message.timestamp)}</span>
-        </div>
-        
-        <div className={`text-sm ${styles.textClass}`}>
-          {message.content}
-        </div>
-        
-        {/* Display file attachments if present */}
+        {/* Message files */}
         {message.files && message.files.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-2">
             {message.files.map(file => (
               <FileAttachment key={file.id} file={file} />
             ))}
           </div>
         )}
         
-        {/* Display rich message content if present */}
-        {message.richData && (
-          <div className="mt-3">
-            {message.richData.type === MessageType.ORDER && (
-              <RichOrderMessage 
-                order={message.richData.content} 
-                onViewDetails={() => {
-                  // Handle view details
-                }}
-              />
-            )}
-            
-            {message.richData.type === MessageType.PRODUCT && (
-              <RichProductMessage products={message.richData.content} />
-            )}
-            
-            {message.richData.type === MessageType.FORM && (
-              <RichFormMessage 
-                formConfig={message.richData.content} 
-                onSubmit={(data) => {
-                  // Handle form submission
-                  console.log('Form submitted:', data);
-                }}
-              />
-            )}
-          </div>
-        )}
+        {/* Message content */}
+        <div className={styles.textClass}>
+          {formattedContent}
+        </div>
+        
+        {/* Rich content */}
+        {richContent}
+        
+        {/* Timestamp */}
+        <div className="text-xs opacity-50 mt-1">
+          {formatTimestamp(message.timestamp)}
+        </div>
       </div>
     );
   };

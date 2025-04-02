@@ -96,8 +96,18 @@ export default function OrdersPage() {
         const totalCount = data.orders?.totalCount || data.quotes?.totalCount || 0;
         
         if (edges) {
-          const ordersList = edges.map(edge => edge.node);
-          setOrders(ordersList);
+          // Filter out orders with "quote" or "completed" statuses
+          const filteredOrdersList = edges
+            .map(edge => edge.node)
+            .filter(order => {
+              const statusName = order.status?.name?.toLowerCase() || '';
+              return !statusName.includes('quote') && !statusName.includes('completed');
+            });
+          
+          setOrders(filteredOrdersList);
+
+          // Update total count for pagination
+          setTotalOrders(filteredOrdersList.length);
 
           // Handle pagination info
           if (pageInfo) {
@@ -106,26 +116,24 @@ export default function OrdersPage() {
             setEndCursor(pageInfo.endCursor);
             setStartCursor(pageInfo.startCursor);
           }
-
-          setTotalOrders(totalCount);
         } else {
           setOrders([]);
           setTotalOrders(0);
         }
       } else {
-        setError('Failed to load orders');
+        setError('Can\'t retrieve data');
         toast({
           title: 'Error',
-          description: 'Failed to load orders',
+          description: 'Can\'t retrieve data',
           variant: 'destructive',
         });
       }
     } catch (err) {
       console.error('Error fetching orders:', err);
-      setError('An error occurred while fetching orders');
+      setError('Can\'t retrieve data');
       toast({
         title: 'Error',
-        description: 'An error occurred while fetching orders',
+        description: 'Can\'t retrieve data',
         variant: 'destructive',
       });
     } finally {

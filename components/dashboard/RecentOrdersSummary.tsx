@@ -1,12 +1,13 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   FileText,
   ArrowRight,
   Calendar,
   User,
-  DollarSign
+  DollarSign,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '../ui/button';
 
@@ -24,22 +25,30 @@ interface OrderSummary {
 }
 
 interface RecentOrdersSummaryProps {
-  orders: OrderSummary[];
   title?: string;
   maxItems?: number;
   onViewOrder?: (_orderId: string) => void;
   onViewAll?: () => void;
+  orders?: OrderSummary[];
   isLoading?: boolean;
+  error?: boolean;
 }
 
 export function RecentOrdersSummary({
-  orders = [],
   title = 'Recent Orders',
   maxItems = 5,
   onViewOrder,
   onViewAll,
-  isLoading = false
+  orders = [],
+  isLoading = false,
+  error = false
 }: RecentOrdersSummaryProps) {
+  // Filter out orders with "quote" or "completed" statuses
+  const filteredOrders = orders.filter(order => {
+    const statusName = order.status?.toLowerCase() || '';
+    return !statusName.includes('quote') && !statusName.includes('completed');
+  });
+  
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -75,8 +84,6 @@ export function RecentOrdersSummary({
     }
     return 'bg-gray-100 text-gray-800';
   };
-
-  const displayOrders = orders.slice(0, maxItems);
   
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -106,13 +113,18 @@ export function RecentOrdersSummary({
           </div>
           <p className="text-sm text-gray-500 mt-4">Loading recent orders...</p>
         </div>
-      ) : displayOrders.length === 0 ? (
+      ) : error ? (
         <div className="p-8 text-center">
-          <p className="text-sm text-gray-500">No recent orders found</p>
+          <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-3" />
+          <p className="text-sm text-red-600">Can't retrieve data</p>
+        </div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="p-8 text-center">
+          <p className="text-sm text-gray-500">No active orders found</p>
         </div>
       ) : (
         <div className="divide-y">
-          {displayOrders.map((order) => (
+          {filteredOrders.map((order) => (
             <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <h4 className="font-medium text-sm">{order.name}</h4>

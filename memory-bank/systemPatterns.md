@@ -411,13 +411,21 @@ graph TD
     subgraph "Assistants Implementation"
         AssistantsAPI --> AAC[Assistant Creation/Loading]
         AAC --> Thread[Thread Management]
-        Thread --> Run[Run Assistant]
-        Run --> ToolCheck{Requires Tools?}
+        Thread --> MessageType{Message Type?}
+        MessageType -->|User Message| Run[Run Assistant]
+        MessageType -->|Assistant Message| CustomMessage[Create Assistant Message]
+        Run --> ToolChoiceCheck{Use Tool Choice?}
+        ToolChoiceCheck -->|Yes| DirectedToolRun[Directed Tool Run]
+        ToolChoiceCheck -->|No| StandardRun[Standard Run]
+        DirectedToolRun --> ToolCheck
+        StandardRun --> ToolCheck
+        ToolCheck{Requires Tools?}
         ToolCheck -->|Yes| ToolExec[Execute Tools]
         ToolExec --> SubmitResults[Submit Tool Results]
         SubmitResults --> CheckCompletion
         ToolCheck -->|No| CheckCompletion[Check Completion]
         CheckCompletion --> GetResponse[Get Assistant Response]
+        CustomMessage --> CleanupReturn[Return Thread ID & Message ID]
     end
     
     subgraph "External Systems"
@@ -427,11 +435,13 @@ graph TD
     end
     
     GetResponse --> UI
+    CleanupReturn --> UI
 ```
 
 ## Key Components
 
 ### 1. Assistant Definition and Registration
+
 ```typescript
 export async function getPrintavoAssistant() {
   // Check if assistant already exists in your storage
@@ -440,7 +450,7 @@ export async function getPrintavoAssistant() {
   if (!assistantId) {
     console.log('Creating new Printavo Assistant...');
     
-    const assistant = await openai.beta.assistants.create({
+    const assistant = await openai.v2.assistants.create({
       name: "Printavo Agent",
       instructions: "You are a Printavo management assistant...",
       model: "gpt-4o",
@@ -458,64 +468,294 @@ export async function getPrintavoAssistant() {
 ### 2. Thread Management Pattern
 ```typescript
 // Create a new thread for this session
-const thread = await this.openai.beta.threads.create();
+const thread = await this.openai.v2.threads.create();
 this.threadId = thread.id;
 
 // Add user message to thread
-await this.openai.beta.threads.messages.create(
+await this.openai.v2.threads.messages.create(
   this.threadId!,
   { role: "user", content: query }
 );
 ```
 
-### 3. Tool Call Handling Pattern
+### 3. Custom Assistant Messages Pattern
 ```typescript
-if (runStatus.status === "requires_action" && 
-    runStatus.required_action?.type === "submit_tool_outputs" && 
-    runStatus.required_action.submit_tool_outputs.tool_calls) {
-  const toolCalls = runStatus.required_action.submit_tool_outputs.tool_calls;
-  const toolOutputs = [];
-  
-  for (const toolCall of toolCalls) {
-    const functionName = toolCall.function.name;
-    const functionArgs = JSON.parse(toolCall.function.arguments);
-    
-    let output;
-    try {
-      // Execute the actual Printavo API call
-      const result = await executePrintavoOperation(functionName, functionArgs);
-      output = JSON.stringify(result);
-    } catch (error) {
-      output = JSON.stringify({ error: (error as Error).message });
-    }
-    
-    toolOutputs.push({
-      tool_call_id: toolCall.id,
-      output
-    });
+/**
+ * Add a custom assistant message to the thread
+ * 
+ * This is an Assistants API v2 feature that allows creating messages with the assistant role
+ * to build custom conversation histories and insert system-generated information.
+ * 
+ * @param content The message content to add
+ */
+async addAssistantMessage(content: string) {
+  if (!this.threadId) {
+    logger.info('PrintavoAgentClient not initialized, initializing now...');
+    await this.initialize();
   }
   
-  // Submit tool outputs back to the assistant
-  await this.openai.beta.threads.runs.submitToolOutputs(
-    this.threadId!,
-    run.id,
-    { tool_outputs: toolOutputs }
-  );
+  try {
+    logger.info(`Adding custom assistant message to thread: ${this.threadId}`);
+    
+    const message = await this.openai.v2.threads.messages.create(
+      this.threadId!,
+      {
+        role: "assistant",
+        content: content
+      }
+    );
+    
+    logger.info(`Added assistant message with ID: ${message.id}`);
+    
+    return message.id;
+  } catch (error) {
+    logger.error('Error adding assistant message:', error);
+    throw error;
+  }
+}
+
+/**
+ * Add an order summary as an assistant message
+ * 
+ * @param order The order data to summarize
+ */
+async addOrderSummary(order: any) {
+  if (!order || !order.id) {
+    throw new Error('Invalid order data');
+  }
+  
+  // Create a formatted summary of the order
+  const summary = `
+I've found Order #${order.visualId || 'N/A'} for ${order.customer?.name || 'Unknown Customer'}.
+
+**Order Details:**
+- Status: ${order.status?.name || 'Unknown'}
+- Total: $${order.total?.toFixed(2) || '0.00'}
+- Created: ${order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'Unknown'}
+- Items: ${(order.lineItems?.edges?.length || 0) + (order.lineItemGroups?.edges?.length || 0)} products
+
+${order.notes ? `**Notes:** ${order.notes}` : ''}
+`;
+  
+  return this.addAssistantMessage(summary);
 }
 ```
 
-### 4. Feature Flag Integration Pattern
+### 4. API Layer Integration Pattern for Custom Messages
 ```typescript
-// Check if we should use the new OpenAI Assistants API
-const useAssistantsApi = process.env.USE_OPENAI_ASSISTANTS === 'true';
-
-if (useAssistantsApi) {
-  // Process with OpenAI Assistants API
-  // ...
-} else {
-  // Process through legacy natural language interface
-  // ...
+// Handle assistant message creation (v2 feature)
+if (isAssistantMessage) {
+  try {
+    const client = new PrintavoAgentClient();
+    await client.initialize();
+    
+    let messageId;
+    
+    switch (operation) {
+      case 'add_assistant_message': {
+        const { content } = params || {};
+        if (!content) {
+          return NextResponse.json(
+            { error: 'Message content is required' },
+            { status: 400 }
+          );
+        }
+        messageId = await client.addAssistantMessage(content);
+        break;
+      }
+      
+      case 'add_order_summary': {
+        const { order } = params || {};
+        if (!order || !order.id) {
+          return NextResponse.json(
+            { error: 'Valid order data is required' },
+            { status: 400 }
+          );
+        }
+        messageId = await client.addOrderSummary(order);
+        break;
+      }
+      
+      default:
+        return NextResponse.json(
+          { 
+            success: false,
+            error: `Unknown assistant message operation: ${operation}` 
+          },
+          { status: 400 }
+        );
+    }
+    
+    return NextResponse.json({
+      success: true,
+      data: {
+        messageId,
+        threadId: client.getThreadId()
+      },
+      assistantMessageCreated: true
+    });
+  } catch (error) {
+    // Error handling...
+  }
 }
+```
+
+### 5. Service Layer Integration Pattern for Custom Messages
+```typescript
+/**
+ * Add a custom assistant message showing order summary (v2 feature)
+ */
+static async addOrderSummaryMessage(order: any): Promise<AgentResponse<string>> {
+  return this.executeOperation('add_order_summary', { order }, false, true);
+}
+
+/**
+ * Add a custom assistant message (v2 feature)
+ */
+static async addAssistantMessage(content: string): Promise<AgentResponse<string>> {
+  return this.executeOperation('add_assistant_message', { content }, false, true);
+}
+```
+
+### 6. Tool Choice Implementation Pattern
+
+```typescript
+/**
+ * Process a user query using the OpenAI Assistant
+ */
+async processQuery(query: string, toolChoice?: { name: string, arguments?: Record<string, any> }) {
+  if (!this.threadId || !this.assistantId) {
+    logger.info('PrintavoAgentClient not initialized, initializing now...');
+    await this.initialize();
+  }
+  
+  try {
+    // Add user message to thread
+    await this.openai.v2.threads.messages.create(
+      this.threadId!,
+      { role: "user", content: query }
+    );
+    
+    logger.info(`Added user message to thread: ${this.threadId}`);
+    
+    // Run the assistant
+    const runOptions: any = { assistant_id: this.assistantId! };
+    
+    // Add tool_choice if specified
+    if (toolChoice) {
+      logger.info(`Using tool_choice to direct assistant to use: ${toolChoice.name}`);
+      runOptions.tool_choice = {
+        type: "function",
+        function: {
+          name: toolChoice.name,
+          ...(toolChoice.arguments && { arguments: JSON.stringify(toolChoice.arguments) })
+        }
+      };
+    }
+    
+    const run = await this.openai.v2.threads.runs.create(
+      this.threadId!,
+      runOptions
+    );
+    
+    // ... rest of the method ...
+  }
+}
+```
+
+## V1 to V2 Migration
+
+We've successfully migrated from OpenAI's Assistants API v1 to v2. The migration included the following changes:
+
+### 1. Header Updates
+```typescript
+// OLD v1 API
+const assistantsResponse = await fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
+  headers: {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'OpenAI-Beta': 'assistants=v1'
+  }
+});
+
+// NEW v2 API
+const assistantsResponse = await fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
+  headers: {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'OpenAI-Beta': 'assistants=v2'
+  }
+});
+```
+
+### 2. Client Updates
+```typescript
+// OLD v1 API
+const assistant = await openai.beta.assistants.create({
+  name: "Printavo Agent",
+  instructions: "You are a Printavo management assistant...",
+  model: "gpt-4o",
+  tools: printavoTools
+});
+
+// NEW v2 API
+const assistant = await openai.v2.assistants.create({
+  name: "Printavo Agent",
+  instructions: "You are a Printavo management assistant...",
+  model: "gpt-4o",
+  tools: printavoTools
+});
+```
+
+### 3. Assistant ID Management
+We had to create a new assistant with the v2 API and update our environment configuration with the new assistant ID:
+```
+PRINTAVO_ASSISTANT_ID=asst_LXmLzDsVcjbNJsyLyW7NYODZ
+```
+
+### 4. Tool Choice Feature Implementation
+```typescript
+// Without tool_choice
+const run = await this.openai.v2.threads.runs.create(
+  this.threadId!,
+  { assistant_id: this.assistantId! }
+);
+
+// With tool_choice
+const run = await this.openai.v2.threads.runs.create(
+  this.threadId!,
+  { 
+    assistant_id: this.assistantId!,
+    tool_choice: {
+      type: "function",
+      function: {
+        name: "get_order_by_visual_id",
+        arguments: JSON.stringify({ visualId: "1234" })
+      }
+    }
+  }
+);
+```
+
+### 5. Custom Assistant Messages Implementation
+```typescript
+// Creating a custom assistant message
+const message = await openai.v2.threads.messages.create(
+  threadId,
+  {
+    role: "assistant",
+    content: "I've found the information you requested..."
+  }
+);
+
+// vs. standard user message
+const userMessage = await openai.v2.threads.messages.create(
+  threadId,
+  {
+    role: "user",
+    content: "Show me order 1234"
+  }
+);
 ```
 
 ## Benefits of This Pattern
@@ -541,5 +781,17 @@ if (useAssistantsApi) {
 5. **Simplified Tool Definition**: JSONSchema-based tool definitions
    - Declarative approach to defining available tools
    - Clear parameter specifications
+
+6. **Directed Tool Execution**: Tool choice parameter enables more reliable operations
+   - Enhanced predictability for critical operations
+   - Reduced token usage by avoiding unnecessary reasoning
+   - Faster execution for known operation types
+   - Simplified debugging with deterministic behavior
+
+7. **Structured Information Presentation**: Custom assistant messages enable better information display
+   - Pre-formatted data can be presented consistently
+   - System-generated content can guide conversation flow
+   - Complex information can be organized in a readable format
+   - Assistant persona remains consistent with manually generated messages
 
 This pattern represents a significant architectural improvement over our previous custom agent implementation, leveraging OpenAI's purpose-built infrastructure for stateful, tool-augmented conversations.

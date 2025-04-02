@@ -178,6 +178,12 @@ function ChatWidget(): React.ReactElement {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <span 
+              className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded"
+              title="Using OpenAI Agents SDK"
+            >
+              AGENT
+            </span>
             <Button
               variant="ghost"
               size="sm"
